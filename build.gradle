@@ -1,0 +1,100 @@
+// Inherit ForgeGradle build script.
+buildscript {
+	repositories {
+		maven {
+			url = 'https://files.minecraftforge.net/maven'
+		}
+	}
+	dependencies {
+		classpath 'net.minecraftforge.gradle:ForgeGradle:4.+'
+	}
+}
+
+// Use the Shadow plugin.
+plugins {
+	id 'com.github.johnrengelman.shadow' version '6.1.0'
+}
+
+// Introduce an additional configuration, which we will use only to hold the
+// Asmble configuration and its dependency tree for shadowing.
+configurations {
+	dependenciesToShadow
+}
+
+// Add the OpenComputers Maven repository.
+repositories {
+	maven {
+		url = 'https://maven.cil.li'
+	}
+}
+
+// Use the ForgeGradle plugin.
+apply plugin: 'net.minecraftforge.gradle'
+
+// Set basic properties.
+version = '1.12.2-0.0.1.0'
+group = 'ca.chead.oc-wasm'
+archivesBaseName = 'oc-wasm'
+sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8'
+
+minecraft {
+	// Set version of obfuscation mappings to use.
+	mappings channel: 'snapshot', version: '20171003-1.12'
+}
+
+// Set dependencies.
+dependencies {
+	minecraft(group: 'net.minecraftforge', name: 'forge', version: forgeVersion)
+	implementation(group: 'li.cil.oc', name: 'OpenComputers', version: opencomputersVersion, classifier: 'api')
+	implementation(group: 'org.scala-lang', name: 'scala-library', version: '2.+');
+	implementation(group: 'com.github.cretz.asmble', name: 'asmble-compiler', version: asmbleVersion)
+	implementation(group: 'org.ow2.asm', name: 'asm-analysis', version: '9.1')
+	implementation(group: 'org.ow2.asm', name: 'asm-commons', version: '9.1')
+	implementation(group: 'org.ow2.asm', name: 'asm-tree', version: '9.1')
+	implementation(group: 'org.ow2.asm', name: 'asm-util', version: '9.1')
+	implementation(group: 'co.nstant.in', name: 'cbor', version: '0.9')
+	dependenciesToShadow(group: 'com.github.cretz.asmble', name: 'asmble-compiler', version: asmbleVersion)
+	dependenciesToShadow(group: 'org.ow2.asm', name: 'asm-analysis', version: '9.1')
+	dependenciesToShadow(group: 'org.ow2.asm', name: 'asm-commons', version: '9.1')
+	dependenciesToShadow(group: 'org.ow2.asm', name: 'asm-tree', version: '9.1')
+	dependenciesToShadow(group: 'org.ow2.asm', name: 'asm-util', version: '9.1')
+	dependenciesToShadow(group: 'co.nstant.in', name: 'cbor', version: '0.9')
+}
+
+// Run the Java compiler with -Xlint.
+compileJava {
+	options.compilerArgs << '-Xlint'
+}
+
+// A task to bundle used libraries into the output jar, also renaming ASM since
+// Asmble wants a substantially different version of it than is shipped with
+// Forge itself, so we want to avoid using the one shipped with Forge.
+shadowJar {
+	// Produce the oc-wasm-<version>-shadowed.jar file.
+	archiveClassifier = 'shadowed'
+
+	// Only shadow Asmble and its dependencies, not all of Forge and
+	// OpenComputers.
+	configurations = [project.configurations.dependenciesToShadow]
+
+	// Some of the dependencies have module-info.class files. These make Forge
+	// crash on startup because they are not normal Java classes. Drop them.
+	exclude 'module-info.class'
+
+	// Forge ships a copy of ASM. However, Asmbler wants a newer version of ASM
+	// than the one shipped with Forge. If left untouched, class loading rules
+	// mean that Forge’s version will be used and the one in the OC-Wasm JAR
+	// will be ignored. To allow Asmbler to use the version it wants, relocate
+	// it, which renames the package in the OC-Wasm JAR and also all references
+	// to it.
+	relocate 'org.objectweb.asm', 'ca.chead.ocwasm.relocated.asm'
+}
+
+// Create a task to reobfuscate the shadowed JAR (by default only a
+// reobfuscate-the-unshadows-JAR task is created).
+reobf {
+	shadowJar {}
+}
+
+// The default task is to build the obfuscated, shadowed JAR.
+defaultTasks 'reobfShadowJar'
