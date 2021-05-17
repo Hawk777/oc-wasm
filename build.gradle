@@ -37,6 +37,14 @@ group = 'ca.chead.oc-wasm'
 archivesBaseName = 'oc-wasm'
 sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8'
 
+// Arrange to fill in the metadata in mcmod.info automatically.
+processResources {
+	from(sourceSets.main.resources.srcDirs) {
+		include 'mcmod.info'
+		expand 'group': group, 'version': version
+	}
+}
+
 minecraft {
 	// Set version of obfuscation mappings to use.
 	mappings channel: 'snapshot', version: '20171003-1.12'

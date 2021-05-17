@@ -1,0 +1,11 @@
+[{
+	"modid": "${group}",
+	"name": "OC-Wasm",
+	"description": "An OpenComputers architecture that runs Wasm.",
+	"version": "${version}",
+	"mcversion": "1.12.2",
+	"authorList": ["Hawk777"],
+	"useDependencyInformation": true,
+	"requiredMods": ["opencomputers"],
+	"dependencies": ["opencomputers"]
+}]
