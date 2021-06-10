@@ -11,3 +11,11 @@
   artifacts:
     paths:
       - build/reobfShadowJar/output.jar
+
+"Checkstyle":
+  stage: test
+  needs: []
+  image:
+    name: "markstory/checkstyle"
+  script:
+    - checkstyle -c .checkstyle.xml src/main
