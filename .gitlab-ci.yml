@@ -19,3 +19,15 @@
     name: "markstory/checkstyle"
   script:
     - checkstyle -c .checkstyle.xml src/main
+
+"SpotBugs":
+  stage: test
+  needs: ["Compile"]
+  image:
+    name: "gradle:6-jdk8"
+  cache:
+    paths:
+      - gradle-home
+    key: gradle
+  script:
+    - gradle --no-daemon --gradle-user-home gradle-home spotbugsMain

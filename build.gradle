@@ -10,9 +10,10 @@ buildscript {
 	}
 }
 
-// Use the Shadow plugin.
+// Use the Shadow and SpotBugs plugins.
 plugins {
 	id 'com.github.johnrengelman.shadow' version '6.1.0'
+	id 'com.github.spotbugs' version '4.7.1'
 }
 
 // Introduce an additional configuration, which we will use only to hold the
@@ -67,11 +68,18 @@ dependencies {
 	dependenciesToShadow(group: 'org.ow2.asm', name: 'asm-tree', version: '9.1')
 	dependenciesToShadow(group: 'org.ow2.asm', name: 'asm-util', version: '9.1')
 	dependenciesToShadow(group: 'co.nstant.in', name: 'cbor', version: '0.9')
+	spotbugs(group: 'com.github.spotbugs', name: 'spotbugs', version: '4.2.3')
 }
 
 // Run the Java compiler with -Xlint.
 compileJava {
 	options.compilerArgs << '-Xlint'
+}
+
+// Configure SpotBugs.
+spotbugs {
+	toolVersion = '4.7.1'
+	excludeFilter = file('.spotbugs-exclude.xml')
 }
 
 // A task to bundle used libraries into the output jar, also renaming ASM since
