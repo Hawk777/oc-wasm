@@ -1,0 +1,13 @@
+"Compile":
+  stage: build
+  image:
+    name: "gradle:6-jdk8"
+  script:
+    - gradle --no-daemon --gradle-user-home gradle-home
+  cache:
+    paths:
+      - gradle-home
+    key: gradle
+  artifacts:
+    paths:
+      - build/reobfShadowJar/output.jar
