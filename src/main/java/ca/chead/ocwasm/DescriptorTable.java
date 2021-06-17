@@ -16,60 +16,6 @@ import net.minecraftforge.common.util.Constants.NBT;
  */
 public final class DescriptorTable {
 	/**
-	 * An opaque value entry.
-	 *
-	 * Each valid element in the descriptor table points at an instance of this
-	 * class. However, there is only one instance of this class for each
-	 * distinct opaque value. If the same opaque value is added to the
-	 * descriptor table more than once, each addition yields a fresh descriptor
-	 * number, but all those table positions point at the same {@code Entry}
-	 * object. Once all descriptors referring to the same {@code Entry} are
-	 * closed, the value itself is disposed.
-	 */
-	private static final class Entry {
-		/**
-		 * The opaque value.
-		 */
-		public final Value value;
-
-		/**
-		 * The number of descriptors that point at this value.
-		 */
-		private int references;
-
-		/**
-		 * Constructs a new Entry with zero references.
-		 *
-		 * @param value The opaque value.
-		 */
-		Entry(final Value value) {
-			super();
-			this.value = Objects.requireNonNull(value);
-			references = 0;
-		}
-
-		/**
-		 * Increments the reference count of this entry.
-		 */
-		void ref() {
-			++references;
-		}
-
-		/**
-		 * Decrements the reference count of this entry and, if it reaches
-		 * zero, disposes of the value.
-		 *
-		 * @param context The OpenComputers context.
-		 */
-		void unref(final Context context) {
-			--references;
-			if(references == 0) {
-				value.dispose(context);
-			}
-		}
-	}
-
-	/**
 	 * An allocator that can incrementally allocate new descriptors, then
 	 * either commit or abort the allocation.
 	 *
@@ -96,7 +42,7 @@ public final class DescriptorTable {
 			/**
 			 * The table entry to point the descriptor at.
 			 */
-			public final Entry entry;
+			public final ReferencedValue entry;
 
 			/**
 			 * Constructs a new {@code Allocation}.
@@ -104,7 +50,7 @@ public final class DescriptorTable {
 			 * @param descriptor The descriptor number that is allocated.
 			 * @param entry The table entry to point the descriptor at.
 			 */
-			Allocation(final int descriptor, final Entry entry) {
+			Allocation(final int descriptor, final ReferencedValue entry) {
 				super();
 				this.descriptor = descriptor;
 				this.entry = Objects.requireNonNull(entry);
@@ -149,30 +95,31 @@ public final class DescriptorTable {
 			final int descriptor = next;
 			++next;
 
-			// Get hold of the proper Entry object.
-			final Entry entry;
-			final Entry existingEntry = objects.stream().filter(i -> i != null && i.value == value).findAny().orElse(null);
+			// Get hold of the proper ReferencedValue object.
+			final ReferencedValue entry;
+			final ReferencedValue existingEntry = objects.stream().filter(i -> i != null && i.value == value).findAny().orElse(null);
 			if(existingEntry != null) {
-				// There’s already an Entry for this Value in the main table.
-				// Reuse that Entry. Don’t ref it now; on abort we don’t want
-				// the refcount to change, and on commit we’ll update it there.
+				// There’s already a ReferencedValue for this Value in the main
+				// table. Reuse that ReferencedValue. Don’t ref it now; on
+				// abort we don’t want the refcount to change, and on commit
+				// we’ll update it there.
 				entry = existingEntry;
 			} else {
-				// There’s no Entry for this Value in the main table.
-				final Entry provisionalEntry = allocations.stream().filter(i -> i.entry.value == value).map(i -> i.entry).findAny().orElse(null);
+				// There’s no ReferencedValue for this Value in the main table.
+				final ReferencedValue provisionalEntry = allocations.stream().filter(i -> i.entry.value == value).map(i -> i.entry).findAny().orElse(null);
 				if(provisionalEntry != null) {
-					// There is a provisional Entry for this Value already in
-					// this Allocator. Reuse that Entry. Don’t ref it now; on
-					// abort we don’t care (because it’s all provisional),
-					// while on commit we’ll ref everything the proper number
-					// of times.
+					// There is a provisional ReferencedValue for this Value
+					// already in this Allocator. Reuse that ReferencedValue.
+					// Don’t ref it now; on abort we don’t care (because it’s
+					// all provisional), while on commit we’ll ref everything
+					// the proper number of times.
 					entry = provisionalEntry;
 				} else {
-					// There’s no Entry for this Value. Create a new one. Leave
-					// its refcount at zero; on abort we don’t care (because
-					// it’s all provisional), while on commit we’ll ref
-					// everything the proper number of times.
-					entry = new Entry(value);
+					// There’s no ReferencedValue for this Value. Create a new
+					// one. Leave its refcount at zero; on abort we don’t care
+					// (because it’s all provisional), while on commit we’ll
+					// ref everything the proper number of times.
+					entry = new ReferencedValue(value);
 				}
 			}
 
@@ -203,11 +150,11 @@ public final class DescriptorTable {
 				objects.addAll(Collections.nCopies(growBy, null));
 			}
 
-			// Put the allocations into the table, reffing each one. For Entry
-			// objects that are pointed to by only one descriptor, this changes
-			// their refcount from zero to one. For those that are
-			// shared—either with other new descriptors or with existing
-			// ones—this increments it by the proper amount.
+			// Put the allocations into the table, reffing each one. For
+			// ReferencedValue objects that are pointed to by only one
+			// descriptor, this changes their refcount from zero to one. For
+			// those that are shared—either with other new descriptors or with
+			// existing ones—this increments it by the proper amount.
 			allocations.stream().forEach(i -> {
 				i.entry.ref();
 				objects.set(i.descriptor, i.entry);
@@ -274,7 +221,7 @@ public final class DescriptorTable {
 	/**
 	 * The objects.
 	 */
-	private final ArrayList<Entry> objects;
+	private final ArrayList<ReferencedValue> objects;
 
 	/**
 	 * Constructs an empty {@code DescriptorTable}.
@@ -284,7 +231,7 @@ public final class DescriptorTable {
 	public DescriptorTable(final Context context) {
 		super();
 		this.context = Objects.requireNonNull(context);
-		objects = new ArrayList<Entry>();
+		objects = new ArrayList<ReferencedValue>();
 	}
 
 	/**
@@ -299,11 +246,11 @@ public final class DescriptorTable {
 		this.context = Objects.requireNonNull(context);
 
 		// Load the values and create the entries.
-		final Entry[] entries;
+		final ReferencedValue[] entries;
 		{
 			final NBTTagList valuesNBT = root.getTagList(NBT_VALUES_KEY, NBT.TAG_COMPOUND);
 			final int count = valuesNBT.tagCount();
-			entries = new Entry[count];
+			entries = new ReferencedValue[count];
 			for(int i = 0; i != count; ++i) {
 				final NBTTagCompound valueNBT = valuesNBT.getCompoundTagAt(i);
 				final String className = valueNBT.getString(NBT_VALUE_CLASS_KEY);
@@ -316,14 +263,14 @@ public final class DescriptorTable {
 					throw new RuntimeException("Error restoring OC-Wasm descriptor table opaque value of class " + className + " from NBT", exp);
 				}
 				value.load(dataNBT);
-				entries[i] = new Entry(value);
+				entries[i] = new ReferencedValue(value);
 			}
 		}
 
 		// Load the descriptors.
 		{
 			final int[] descriptorIndices = root.getIntArray(NBT_DESCRIPTORS_KEY);
-			objects = new ArrayList<Entry>(descriptorIndices.length);
+			objects = new ArrayList<ReferencedValue>(descriptorIndices.length);
 			for(final int i : descriptorIndices) {
 				if(i == -1) {
 					objects.add(null);
@@ -365,7 +312,7 @@ public final class DescriptorTable {
 	 * associated value.
 	 */
 	public void close(final int descriptor) throws BadDescriptorException {
-		final Entry entry = getEntry(descriptor);
+		final ReferencedValue entry = getEntry(descriptor);
 		objects.set(descriptor, null);
 		entry.unref(context);
 	}
@@ -378,8 +325,8 @@ public final class DescriptorTable {
 	 * @throws BadDescriptorException If the descriptor does not have an
 	 * associated entry.
 	 */
-	private Entry getEntry(final int descriptor) throws BadDescriptorException {
-		final Entry ret;
+	private ReferencedValue getEntry(final int descriptor) throws BadDescriptorException {
+		final ReferencedValue ret;
 		try {
 			ret = objects.get(descriptor);
 		} catch(final IndexOutOfBoundsException exp) {
@@ -420,7 +367,7 @@ public final class DescriptorTable {
 		// name and another compound containing its saved data.
 		final NBTTagList values = new NBTTagList();
 		final IdentityHashMap<Value, Integer> valuePositions = new IdentityHashMap<Value, Integer>();
-		for(final Entry i : objects) {
+		for(final ReferencedValue i : objects) {
 			if(i != null) {
 				if(!valuePositions.containsKey(i.value)) {
 					final int position = values.tagCount();
