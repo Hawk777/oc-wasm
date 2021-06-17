@@ -21,15 +21,15 @@ public final class DescriptorTable {
 	 *
 	 * An instance of this class stores a collection of descriptors that have
 	 * been provisionally allocated. These are not visible in the main table
-	 * yet. To abort the allocation, the allocator can simply be dropped. If
+	 * yet. To abort the allocation, the allocator can simply be closed. If
 	 * the containing operation succeeds, however, the allocator should be
-	 * committed, which updates the main table and cannot fail.
+	 * committed before closing, which updates the main table and cannot fail.
 	 *
 	 * Only one allocator may exist at a time for a given descriptor table. The
 	 * table must not be modified by other means while an allocator exists,
 	 * either (specifically, descriptors must not be closed).
 	 */
-	public final class Allocator {
+	public final class Allocator implements AutoCloseable {
 		/**
 		 * An allocation record.
 		 */
@@ -162,6 +162,10 @@ public final class DescriptorTable {
 
 			// Just in case.
 			allocations.clear();
+		}
+
+		@Override
+		public void close() {
 		}
 	}
 

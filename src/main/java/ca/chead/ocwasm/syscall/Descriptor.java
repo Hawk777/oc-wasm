@@ -96,10 +96,11 @@ public final class Descriptor {
 			if(descriptors.overfull()) {
 				return ErrorCode.TOO_MANY_DESCRIPTORS.asNegative();
 			}
-			final DescriptorTable.Allocator alloc = descriptors.new Allocator();
-			final int newDescriptor = alloc.add(value);
-			alloc.commit();
-			return newDescriptor;
+			try(DescriptorTable.Allocator alloc = descriptors.new Allocator()) {
+				final int newDescriptor = alloc.add(value);
+				alloc.commit();
+				return newDescriptor;
+			}
 		});
 	}
 }

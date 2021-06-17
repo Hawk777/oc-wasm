@@ -89,28 +89,29 @@ public final class CBOR {
 		Objects.requireNonNull(descriptors);
 		Objects.requireNonNull(descriptorListener);
 
-		final DescriptorTable.Allocator descriptorAlloc = descriptors.new Allocator();
-		final CborEncoder enc = new CborEncoder(target);
-		final CborException[] exps = new CborException[]{null};
-		objects.forEachOrdered(i -> {
-			try {
-				enc.encode(toDataItem(i, descriptorAlloc, descriptorListener));
-			} catch(final CborException e) {
-				if(exps[0] == null) {
-					exps[0] = e;
+		try(DescriptorTable.Allocator descriptorAlloc = descriptors.new Allocator()) {
+			final CborEncoder enc = new CborEncoder(target);
+			final CborException[] exps = new CborException[]{null};
+			objects.forEachOrdered(i -> {
+				try {
+					enc.encode(toDataItem(i, descriptorAlloc, descriptorListener));
+				} catch(final CborException e) {
+					if(exps[0] == null) {
+						exps[0] = e;
+					}
+				}
+			});
+			final CborException exp = exps[0];
+			if(exp != null) {
+				final Throwable cause = exp.getCause();
+				if(cause instanceof IOException) {
+					throw (IOException) cause;
+				} else {
+					throw new RuntimeException("CBOR encoding error (this is an OC-Wasm bug)", exp);
 				}
 			}
-		});
-		final CborException exp = exps[0];
-		if(exp != null) {
-			final Throwable cause = exp.getCause();
-			if(cause instanceof IOException) {
-				throw (IOException) cause;
-			} else {
-				throw new RuntimeException("CBOR encoding error (this is an OC-Wasm bug)", exp);
-			}
+			descriptorAlloc.commit();
 		}
-		descriptorAlloc.commit();
 	}
 
 	/**

@@ -581,11 +581,12 @@ public final class MethodCall {
 		if(target instanceof String) {
 			root.setString(NBT_TARGET, (String) target);
 		} else {
-			final DescriptorTable.Allocator alloc = descriptorTable.new Allocator();
-			final int descriptor = alloc.add((Value) target);
-			alloc.commit();
-			descriptorListener.accept(descriptor);
-			root.setInteger(NBT_TARGET, descriptor);
+			try(DescriptorTable.Allocator alloc = descriptorTable.new Allocator()) {
+				final int descriptor = alloc.add((Value) target);
+				alloc.commit();
+				descriptorListener.accept(descriptor);
+				root.setInteger(NBT_TARGET, descriptor);
+			}
 		}
 		if(method instanceof String) {
 			root.setString(NBT_METHOD, (String) method);
