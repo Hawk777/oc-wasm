@@ -14,6 +14,11 @@ public final class ReferencedValue {
 	public final Value value;
 
 	/**
+	 * The OpenComputers context, used for disposing the value.
+	 */
+	private final Context context;
+
+	/**
 	 * The number of descriptors that point at this value.
 	 */
 	private int references;
@@ -22,10 +27,12 @@ public final class ReferencedValue {
 	 * Constructs a new Entry with zero references.
 	 *
 	 * @param value The opaque value.
+	 * @param context The OpenComputers context, used for disposing the value.
 	 */
-	ReferencedValue(final Value value) {
+	ReferencedValue(final Value value, final Context context) {
 		super();
 		this.value = Objects.requireNonNull(value);
+		this.context = Objects.requireNonNull(context);
 		references = 0;
 	}
 
@@ -39,10 +46,8 @@ public final class ReferencedValue {
 	/**
 	 * Decrements the reference count of this entry and, if it reaches zero,
 	 * disposes of the value.
-	 *
-	 * @param context The OpenComputers context.
 	 */
-	public void unref(final Context context) {
+	public void unref() {
 		--references;
 		if(references == 0) {
 			value.dispose(context);

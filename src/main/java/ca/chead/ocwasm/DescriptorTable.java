@@ -193,7 +193,7 @@ public final class DescriptorTable {
 					throw new RuntimeException("Error restoring OC-Wasm descriptor table opaque value of class " + className + " from NBT", exp);
 				}
 				value.load(dataNBT);
-				entries[i] = new ReferencedValue(value);
+				entries[i] = new ReferencedValue(value, context);
 			}
 		}
 
@@ -263,7 +263,7 @@ public final class DescriptorTable {
 		} else {
 			// There’s no ReferencedValue for this Value in the table. Create a
 			// new one.
-			entry = new ReferencedValue(value);
+			entry = new ReferencedValue(value, context);
 		}
 
 		// Ref the obtained value and add it to the table.
@@ -298,7 +298,7 @@ public final class DescriptorTable {
 	public void close(final int descriptor) throws BadDescriptorException {
 		final ReferencedValue entry = getEntry(descriptor);
 		objects.set(descriptor, null);
-		entry.unref(context);
+		entry.unref();
 		firstEmpty = Math.min(firstEmpty, descriptor);
 	}
 
@@ -380,7 +380,7 @@ public final class DescriptorTable {
 	 * Closes all descriptors.
 	 */
 	public void closeAll() {
-		objects.stream().filter(i -> i != null).forEach(i -> i.unref(context));
+		objects.stream().filter(i -> i != null).forEach(i -> i.unref());
 		objects.clear();
 		firstEmpty = 0;
 	}
