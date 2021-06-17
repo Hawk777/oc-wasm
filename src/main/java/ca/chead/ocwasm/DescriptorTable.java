@@ -1,13 +1,10 @@
 package ca.chead.ocwasm;
 
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.Objects;
 import li.cil.oc.api.machine.Context;
 import li.cil.oc.api.machine.Value;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
-import net.minecraftforge.common.util.Constants.NBT;
 
 /**
  * A table mapping between integer descriptors and opaque values, with the
@@ -104,36 +101,11 @@ public final class DescriptorTable {
 	private static final int MAX_SIZE = 4096;
 
 	/**
-	 * The NBT compound key where the opaque values are kept.
-	 *
-	 * This tag is a list of compounds, each of which contains {@link
-	 * #NBT_VALUE_CLASS_KEY} and {@link #NBT_VALUE_DATA_KEY} tags.
-	 */
-	private static final String NBT_VALUES_KEY = "values";
-
-	/**
-	 * The NBT compound key within a value compound where the class name is
-	 * kept.
-	 *
-	 * This tag is a string containing the Java class name.
-	 */
-	private static final String NBT_VALUE_CLASS_KEY = "class";
-
-	/**
-	 * The NBT compound key within a value compound where the value’s data
-	 * compound is kept.
-	 *
-	 * This tag is a compound containing the encoded form of the value.
-	 */
-	private static final String NBT_VALUE_DATA_KEY = "data";
-
-	/**
 	 * The NBT compound key where the descriptors are kept.
 	 *
-	 * This tag is an integer array. Each position in the array corresponds to
-	 * one descriptor value (i.e. position 0 is descriptor 0, and so on). Each
-	 * element is either the index within {@link #NBT_VALUES_KEY} of the value
-	 * to which the value refers, or −1 if the descriptor is closed.
+	 * This tag is an integer array. Each position in the array contains either
+	 * −1 if the descriptor is closed, or value pool index of the value if the
+	 * descriptor is open.
 	 */
 	private static final String NBT_DESCRIPTORS_KEY = "descriptors";
 
@@ -168,34 +140,13 @@ public final class DescriptorTable {
 	 * Loads a {@code DescriptorTable} that was previously saved.
 	 *
 	 * @param context The OpenComputers context.
+	 * @param valuePool The value pool.
 	 * @param root The compound that was previously returned from {@link
 	 * #save}.
 	 */
-	public DescriptorTable(final Context context, final NBTTagCompound root) {
+	public DescriptorTable(final Context context, final ReferencedValue[] valuePool, final NBTTagCompound root) {
 		super();
 		this.context = Objects.requireNonNull(context);
-
-		// Load the values and create the entries.
-		final ReferencedValue[] entries;
-		{
-			final NBTTagList valuesNBT = root.getTagList(NBT_VALUES_KEY, NBT.TAG_COMPOUND);
-			final int count = valuesNBT.tagCount();
-			entries = new ReferencedValue[count];
-			for(int i = 0; i != count; ++i) {
-				final NBTTagCompound valueNBT = valuesNBT.getCompoundTagAt(i);
-				final String className = valueNBT.getString(NBT_VALUE_CLASS_KEY);
-				final NBTTagCompound dataNBT = valueNBT.getCompoundTag(NBT_VALUE_DATA_KEY);
-				final Value value;
-				try {
-					final Class<? extends Value> clazz = Class.forName(className).asSubclass(Value.class);
-					value = clazz.newInstance();
-				} catch(final ReflectiveOperationException exp) {
-					throw new RuntimeException("Error restoring OC-Wasm descriptor table opaque value of class " + className + " from NBT", exp);
-				}
-				value.load(dataNBT);
-				entries[i] = new ReferencedValue(value, context);
-			}
-		}
 
 		// Load the descriptors.
 		{
@@ -205,8 +156,8 @@ public final class DescriptorTable {
 				if(i == -1) {
 					objects.add(null);
 				} else {
-					entries[i].ref();
-					objects.add(entries[i]);
+					valuePool[i].ref();
+					objects.add(valuePool[i]);
 				}
 			}
 		}
@@ -326,9 +277,10 @@ public final class DescriptorTable {
 	/**
 	 * Saves the {@code DescriptorTable} into an NBT structure.
 	 *
+	 * @param valuePool The pool that holds opaque values.
 	 * @return The created NBT tag.
 	 */
-	public NBTTagCompound save() {
+	public NBTTagCompound save(final ValuePool valuePool) {
 		final NBTTagCompound root = new NBTTagCompound();
 
 		// Shrink the descriptor table by removing trailing nulls.
@@ -346,32 +298,10 @@ public final class DescriptorTable {
 			}
 		}
 
-		// Put the values into a list. Save each one only once, not once per
-		// descriptor that refers to it, and record its position in the list.
-		// For each value, create a compound. In the compound, put its class
-		// name and another compound containing its saved data.
-		final NBTTagList values = new NBTTagList();
-		final IdentityHashMap<Value, Integer> valuePositions = new IdentityHashMap<Value, Integer>();
-		for(final ReferencedValue i : objects) {
-			if(i != null) {
-				if(!valuePositions.containsKey(i.value)) {
-					final int position = values.tagCount();
-					final NBTTagCompound valueNBT = new NBTTagCompound();
-					valueNBT.setString(NBT_VALUE_CLASS_KEY, i.value.getClass().getName());
-					final NBTTagCompound dataNBT = new NBTTagCompound();
-					i.value.save(dataNBT);
-					valueNBT.setTag(NBT_VALUE_DATA_KEY, dataNBT);
-					values.appendTag(valueNBT);
-					valuePositions.put(i.value, position);
-				}
-			}
-		}
-		root.setTag(NBT_VALUES_KEY, values);
-
 		// Pack the descriptors into an integer array. Each element of the
-		// integer array will be the position in the values list of the value
+		// integer array will be the position in the value pool of the value
 		// referred to by that descriptor, or -1 if the descriptor is unused.
-		root.setIntArray(NBT_DESCRIPTORS_KEY, objects.stream().mapToInt(i -> (i == null) ? -1 : valuePositions.get(i.value)).toArray());
+		root.setIntArray(NBT_DESCRIPTORS_KEY, objects.stream().mapToInt(i -> (i == null) ? -1 : valuePool.store(i.value)).toArray());
 
 		return root;
 	}

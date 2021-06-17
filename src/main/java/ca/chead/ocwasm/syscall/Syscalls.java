@@ -3,7 +3,9 @@ package ca.chead.ocwasm.syscall;
 import ca.chead.ocwasm.BadDescriptorException;
 import ca.chead.ocwasm.CPU;
 import ca.chead.ocwasm.DescriptorTable;
+import ca.chead.ocwasm.ReferencedValue;
 import ca.chead.ocwasm.Snapshot;
+import ca.chead.ocwasm.ValuePool;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -13,11 +15,20 @@ import java.util.Objects;
 import java.util.Optional;
 import li.cil.oc.api.machine.Machine;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraftforge.common.util.Constants.NBT;
 
 /**
  * All the syscall modules that are available for a Wasm module to import.
  */
 public final class Syscalls {
+	/**
+	 * The name of the NBT tag that holds the opaque value pool.
+	 *
+	 * This tag is a list of compounds. Each compound contains keys {@link
+	 * #NBT_VALUE_CLASS_KEY} and {@link #NBT_VALUE_DATA_KEY}.
+	 */
+	private static final String NBT_VALUES = "ca.chead.ocwasm.values";
+
 	/**
 	 * The name of the NBT tag that holds the {@link #descriptors} field.
 	 */
@@ -98,7 +109,8 @@ public final class Syscalls {
 		Objects.requireNonNull(machine);
 		Objects.requireNonNull(cpu);
 		Objects.requireNonNull(memory);
-		descriptors = new DescriptorTable(machine, root.getCompoundTag(NBT_DESCRIPTORS));
+		final ReferencedValue[] valuePool = ValuePool.load(machine, root.getTagList(NBT_VALUES, NBT.TAG_COMPOUND));
+		descriptors = new DescriptorTable(machine, valuePool, root.getCompoundTag(NBT_DESCRIPTORS));
 		component = new Component(machine, memory, descriptors, root.getCompoundTag(NBT_COMPONENT));
 		computer = new Computer(machine, cpu, memory, descriptors, root.getCompoundTag(NBT_COMPUTER));
 		descriptor = new Descriptor(descriptors, component);
@@ -114,6 +126,10 @@ public final class Syscalls {
 	 * #execute} module, if the buffer contains any data.
 	 */
 	public Optional<byte[]> save(final NBTTagCompound root) {
+		// Create a pool to hold opaque values. The pool can be referenced by
+		// other parts of the system, but each value will appear only once.
+		final ValuePool valuePool = new ValuePool();
+
 		// Some of the syscall modules might allocate descriptors in order to
 		// persist references to opaque values that were held in their internal
 		// state. Keep track of all such allocated descriptors.
@@ -126,7 +142,7 @@ public final class Syscalls {
 		// Save the descriptor table last, now that the modules have had a
 		// chance to add any extra descriptors they need to preserve their
 		// internal state.
-		root.setTag(NBT_DESCRIPTORS, descriptors.save());
+		root.setTag(NBT_DESCRIPTORS, descriptors.save(valuePool));
 
 		// If the modules allocated descriptors as part of saving, we want
 		// those descriptors to appear in the NBT image of the descriptor
@@ -142,6 +158,10 @@ public final class Syscalls {
 				throw new RuntimeException(exp);
 			}
 		});
+
+		// Save the value pool, now that everyone has had a chance to put
+		// values in it.
+		root.setTag(NBT_VALUES, valuePool.save());
 
 		// Also save the state of the execute module, which only needs to
 		// return a large byte array.
