@@ -20,7 +20,7 @@ import net.minecraft.nbt.NBTTagString;
 /**
  * All the information needed to call a method on a component or value.
  */
-public final class MethodCall {
+public final class MethodCall implements AutoCloseable {
 	/**
 	 * The possible special methods that can be performed on an opaque value.
 	 *
@@ -307,7 +307,7 @@ public final class MethodCall {
 	 * The target on which to invoke a method.
 	 *
 	 * This is either a {@code String} holding the UUID of the component, or a
-	 * {@code Value} holding an opaque value which has methods.
+	 * {@code ValueReference} holding an opaque value which has methods.
 	 */
 	public final Object target;
 
@@ -341,13 +341,13 @@ public final class MethodCall {
 	/**
 	 * Constructs a new {@code MethodCall} to call a special method on an opaque value.
 	 *
-	 * @param value The opaque value.
+	 * @param value The opaque value, which is cloned.
 	 * @param method The method.
 	 * @param parameters The parameters to pass to the method.
 	 */
-	public MethodCall(final Value value, final SpecialMethod method, final Object[] parameters) {
+	public MethodCall(final ValueReference value, final SpecialMethod method, final Object[] parameters) {
 		super();
-		this.target = Objects.requireNonNull(value);
+		this.target = value.clone();
 		this.method = Objects.requireNonNull(method);
 		this.parameters = Objects.requireNonNull(parameters);
 	}
@@ -355,13 +355,13 @@ public final class MethodCall {
 	/**
 	 * Constructs a new {@code MethodCall} to call a regular method on an opaque value.
 	 *
-	 * @param value The opaque value.
+	 * @param value The opaque value, which is cloned.
 	 * @param method The name of the method.
 	 * @param parameters The parameters to pass to the method.
 	 */
-	public MethodCall(final Value value, final String method, final Object[] parameters) {
+	public MethodCall(final ValueReference value, final String method, final Object[] parameters) {
 		super();
-		this.target = Objects.requireNonNull(value);
+		this.target = value.clone();
 		this.method = Objects.requireNonNull(method);
 		this.parameters = Objects.requireNonNull(parameters);
 	}
@@ -516,8 +516,8 @@ public final class MethodCall {
 			final Object methodMapValue;
 			if(target instanceof String) {
 				methodMapValue = ComponentUtils.getComponent(machine, (String) target).host();
-			} else if(target instanceof Value) {
-				methodMapValue = target;
+			} else if(target instanceof ValueReference) {
+				methodMapValue = ((ValueReference) target).get();
 			} else {
 				throw new RuntimeException("Unknown target type " + target.getClass());
 			}
@@ -536,14 +536,14 @@ public final class MethodCall {
 			if(method instanceof String) {
 				if(target instanceof String) {
 					result = machine.invoke((String) target, (String) method, parameters);
-				} else if(target instanceof Value) {
-					result = machine.invoke((Value) target, (String) method, parameters);
+				} else if(target instanceof ValueReference) {
+					result = machine.invoke(((ValueReference) target).get(), (String) method, parameters);
 				} else {
 					throw new RuntimeException("Unknown target type " + target.getClass());
 				}
 			} else if(method instanceof SpecialMethod) {
-				if(target instanceof Value) {
-					final Object[] unconverted = ((SpecialMethod) method).invoke((Value) target, machine, new Arguments(parameters));
+				if(target instanceof ValueReference) {
+					final Object[] unconverted = ((SpecialMethod) method).invoke(((ValueReference) target).get(), machine, new Arguments(parameters));
 					result = OCWasm.convertValues(unconverted);
 				} else {
 					throw new RuntimeException("Unknown target type " + target.getClass());
@@ -582,7 +582,7 @@ public final class MethodCall {
 			root.setString(NBT_TARGET, (String) target);
 		} else {
 			try(DescriptorTable.Allocator alloc = descriptorTable.new Allocator()) {
-				final int descriptor = alloc.add((Value) target);
+				final int descriptor = alloc.add(((ValueReference) target).get());
 				alloc.commit();
 				descriptorListener.accept(descriptor);
 				root.setInteger(NBT_TARGET, descriptor);
@@ -595,5 +595,12 @@ public final class MethodCall {
 		}
 		root.setByteArray(NBT_PARAMETERS, CBOR.toCBORSequence(Arrays.stream(parameters), descriptorTable, descriptorListener));
 		return root;
+	}
+
+	@Override
+	public void close() {
+		if(target instanceof ValueReference) {
+			((ValueReference) target).close();
+		}
 	}
 }

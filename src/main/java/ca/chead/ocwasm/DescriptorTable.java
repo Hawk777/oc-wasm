@@ -232,12 +232,12 @@ public final class DescriptorTable {
 	 * Gets a value.
 	 *
 	 * @param descriptor The descriptor to look up.
-	 * @return The corresponding value.
+	 * @return A reference to the corresponding value.
 	 * @throws BadDescriptorException If the descriptor does not have an
 	 * associated value.
 	 */
-	public Value get(final int descriptor) throws BadDescriptorException {
-		return getEntry(descriptor).value;
+	public ValueReference get(final int descriptor) throws BadDescriptorException {
+		return new ValueReference(getEntry(descriptor));
 	}
 
 	/**

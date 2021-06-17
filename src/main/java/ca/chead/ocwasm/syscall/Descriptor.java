@@ -2,9 +2,9 @@ package ca.chead.ocwasm.syscall;
 
 import ca.chead.ocwasm.DescriptorTable;
 import ca.chead.ocwasm.ErrorCode;
+import ca.chead.ocwasm.ValueReference;
 import ca.chead.ocwasm.WrappedException;
 import java.util.Objects;
-import li.cil.oc.api.machine.Value;
 
 /**
  * The syscalls available for import into a Wasm module in the {@code
@@ -92,14 +92,15 @@ public final class Descriptor {
 	@Syscall
 	public int dup(final int descriptor) throws WrappedException {
 		return SyscallWrapper.wrap(() -> {
-			final Value value = descriptors.get(descriptor);
-			if(descriptors.overfull()) {
-				return ErrorCode.TOO_MANY_DESCRIPTORS.asNegative();
-			}
-			try(DescriptorTable.Allocator alloc = descriptors.new Allocator()) {
-				final int newDescriptor = alloc.add(value);
-				alloc.commit();
-				return newDescriptor;
+			try(ValueReference value = descriptors.get(descriptor)) {
+				if(descriptors.overfull()) {
+					return ErrorCode.TOO_MANY_DESCRIPTORS.asNegative();
+				}
+				try(DescriptorTable.Allocator alloc = descriptors.new Allocator()) {
+					final int newDescriptor = alloc.add(value.get());
+					alloc.commit();
+					return newDescriptor;
+				}
 			}
 		});
 	}

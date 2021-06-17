@@ -12,6 +12,7 @@ import ca.chead.ocwasm.MethodCall;
 import ca.chead.ocwasm.NoSuchComponentException;
 import ca.chead.ocwasm.StringDecodeException;
 import ca.chead.ocwasm.SyscallErrorException;
+import ca.chead.ocwasm.ValueReference;
 import ca.chead.ocwasm.WasmString;
 import ca.chead.ocwasm.WrappedException;
 import java.nio.ByteBuffer;
@@ -25,7 +26,6 @@ import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import li.cil.oc.api.machine.Callback;
 import li.cil.oc.api.machine.Machine;
-import li.cil.oc.api.machine.Value;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.nbt.NBTTagString;
@@ -481,9 +481,10 @@ public final class Component {
 	@Syscall
 	public int methodsStartValue(final int descriptor) throws WrappedException {
 		return SyscallWrapper.wrap(() -> {
-			final Value value = descriptors.get(descriptor);
-			final Map<String, Callback> snapshot = machine.methods(value);
-			methods = snapshot.entrySet().stream().map(MethodInfo::new).collect(Collectors.toCollection(() -> new ArrayList<MethodInfo>(snapshot.size())));
+			try(ValueReference value = descriptors.get(descriptor)) {
+				final Map<String, Callback> snapshot = machine.methods(value.get());
+				methods = snapshot.entrySet().stream().map(MethodInfo::new).collect(Collectors.toCollection(() -> new ArrayList<MethodInfo>(snapshot.size())));
+			}
 			methodsIndex = 0;
 			return 0;
 		});
@@ -582,13 +583,14 @@ public final class Component {
 	@Syscall
 	public int documentationValue(final int descriptor, final int methodPointer, final int methodLength, final int buffer, final int bufferLength) throws WrappedException {
 		return SyscallWrapper.wrap(() -> {
-			final Value value = descriptors.get(descriptor);
-			final String method = WasmString.toJava(memory, methodPointer, methodLength);
-			final Callback cb = machine.methods(value).get(method);
-			if(cb == null) {
-				return ErrorCode.NO_SUCH_METHOD.asNegative();
+			try(ValueReference value = descriptors.get(descriptor)) {
+				final String method = WasmString.toJava(memory, methodPointer, methodLength);
+				final Callback cb = machine.methods(value.get()).get(method);
+				if(cb == null) {
+					return ErrorCode.NO_SUCH_METHOD.asNegative();
+				}
+				return WasmString.toWasm(memory, buffer, bufferLength, cb.doc());
 			}
-			return WasmString.toWasm(memory, buffer, bufferLength, cb.doc());
 		});
 	}
 
@@ -713,11 +715,12 @@ public final class Component {
 	@Syscall
 	public int invokeValueMethod(final int descriptor, final int methodPointer, final int methodLength, final int paramsPointer, final int paramsLength) throws WrappedException {
 		return SyscallWrapper.wrap(() -> invokeCommon(() -> {
-			final Value target = descriptors.get(descriptor);
-			final String method = WasmString.toJava(memory, methodPointer, methodLength);
-			final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer, paramsLength);
-			final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors);
-			return new MethodCall(target, method, params);
+			try(ValueReference target = descriptors.get(descriptor)) {
+				final String method = WasmString.toJava(memory, methodPointer, methodLength);
+				final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer, paramsLength);
+				final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors);
+				return new MethodCall(target, method, params);
+			}
 		}));
 	}
 
@@ -830,6 +833,7 @@ public final class Component {
 			} catch(final SyscallErrorException exp) {
 				callResult = new CallResult(exp.errorCode());
 			}
+			pendingCall.close();
 			pendingCall = null;
 		}
 	}
@@ -869,10 +873,11 @@ public final class Component {
 	 */
 	private int invokeValueSpecialCommon(final int descriptor, final int paramsPointer, final int paramsLength, final MethodCall.SpecialMethod method) throws SyscallErrorException {
 		return invokeCommon(() -> {
-			final Value target = descriptors.get(descriptor);
-			final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer, paramsLength);
-			final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors);
-			return new MethodCall(target, method, params);
+			try(ValueReference target = descriptors.get(descriptor)) {
+				final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer, paramsLength);
+				final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors);
+				return new MethodCall(target, method, params);
+			}
 		});
 	}
 
@@ -977,6 +982,11 @@ public final class Component {
 		// dispose them properly.
 		if(callResult != null && callResult.result != null) {
 			callResult.result.get();
+		}
+
+		// If we have a pending call, close it.
+		if(pendingCall != null) {
+			pendingCall.close();
 		}
 	}
 }

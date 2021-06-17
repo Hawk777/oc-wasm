@@ -268,7 +268,10 @@ public final class CBOR {
 						throw new CBORDecodeException();
 					}
 					descriptorListener.accept(descriptor);
-					return descriptorTable.get(descriptor);
+					try(ValueReference ref = descriptorTable.get(descriptor)) {
+						// TODO keep the ref for longer.
+						return ref.get();
+					}
 				} else {
 					throw new CBORDecodeException();
 				}
