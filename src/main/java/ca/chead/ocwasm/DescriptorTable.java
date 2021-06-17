@@ -1,7 +1,6 @@
 package ca.chead.ocwasm;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Objects;
 import li.cil.oc.api.machine.Context;
@@ -31,141 +30,62 @@ public final class DescriptorTable {
 	 */
 	public final class Allocator implements AutoCloseable {
 		/**
-		 * An allocation record.
+		 * The descriptors added by this allocator.
 		 */
-		private final class Allocation {
-			/**
-			 * The descriptor number that is allocated.
-			 */
-			public final int descriptor;
-
-			/**
-			 * The table entry to point the descriptor at.
-			 */
-			public final ReferencedValue entry;
-
-			/**
-			 * Constructs a new {@code Allocation}.
-			 *
-			 * @param descriptor The descriptor number that is allocated.
-			 * @param entry The table entry to point the descriptor at.
-			 */
-			Allocation(final int descriptor, final ReferencedValue entry) {
-				super();
-				this.descriptor = descriptor;
-				this.entry = Objects.requireNonNull(entry);
-			}
-		}
-
-		/**
-		 * The allocation records created so far.
-		 */
-		private final ArrayList<Allocation> allocations;
-
-		/**
-		 * The next descriptor index to try allocating.
-		 */
-		private int next;
+		private final ArrayList<Integer> allocations;
 
 		/**
 		 * Constructs a new {@code Allocator}.
 		 */
 		public Allocator() {
 			super();
-			allocations = new ArrayList<Allocation>();
-			next = 0;
+			allocations = new ArrayList<Integer>();
 		}
 
 		/**
-		 * Provisionally allocates a descriptor for an opaque value.
+		 * Allocates a descriptor for an opaque value.
 		 *
 		 * @param value The value.
 		 * @return The provisionally allocated descriptor value.
 		 */
 		public int add(final Value value) {
-			// Sanity check.
-			Objects.requireNonNull(value);
-
-			// Locate the next free descriptor number.
-			while(next < objects.size() && objects.get(next) != null) {
-				++next;
-			}
-
-			// Grab the descriptor and advance the next counter past it.
-			final int descriptor = next;
-			++next;
-
-			// Get hold of the proper ReferencedValue object.
-			final ReferencedValue entry;
-			final ReferencedValue existingEntry = objects.stream().filter(i -> i != null && i.value == value).findAny().orElse(null);
-			if(existingEntry != null) {
-				// There’s already a ReferencedValue for this Value in the main
-				// table. Reuse that ReferencedValue. Don’t ref it now; on
-				// abort we don’t want the refcount to change, and on commit
-				// we’ll update it there.
-				entry = existingEntry;
-			} else {
-				// There’s no ReferencedValue for this Value in the main table.
-				final ReferencedValue provisionalEntry = allocations.stream().filter(i -> i.entry.value == value).map(i -> i.entry).findAny().orElse(null);
-				if(provisionalEntry != null) {
-					// There is a provisional ReferencedValue for this Value
-					// already in this Allocator. Reuse that ReferencedValue.
-					// Don’t ref it now; on abort we don’t care (because it’s
-					// all provisional), while on commit we’ll ref everything
-					// the proper number of times.
-					entry = provisionalEntry;
-				} else {
-					// There’s no ReferencedValue for this Value. Create a new
-					// one. Leave its refcount at zero; on abort we don’t care
-					// (because it’s all provisional), while on commit we’ll
-					// ref everything the proper number of times.
-					entry = new ReferencedValue(value);
-				}
-			}
-
-			allocations.add(new Allocation(descriptor, entry));
+			final int descriptor = DescriptorTable.this.add(value);
+			allocations.add(descriptor);
 			return descriptor;
 		}
 
 		/**
 		 * Commits all allocations to the main table.
 		 *
-		 * This must only be called once, and the {@code Allocator} must be
-		 * thrown away afterwards.
+		 * Once this is called, closing the allocator will no longer close the
+		 * allocated descriptors; instead, they will be permanently added to
+		 * the descriptor table.
 		 */
 		public void commit() {
-			// If there are no allocations, drop out early.
-			if(allocations.isEmpty()) {
-				return;
-			}
-
-			// Find the largest descriptor in the list of allocations. Since
-			// the allocations are always constructed in ascending order,
-			// that’s just the last one.
-			final int maxDescriptor = allocations.get(allocations.size() - 1).descriptor;
-
-			// If the main table is too small, grow it first.
-			if(objects.size() <= maxDescriptor) {
-				final int growBy = (maxDescriptor - objects.size()) + 1;
-				objects.addAll(Collections.nCopies(growBy, null));
-			}
-
-			// Put the allocations into the table, reffing each one. For
-			// ReferencedValue objects that are pointed to by only one
-			// descriptor, this changes their refcount from zero to one. For
-			// those that are shared—either with other new descriptors or with
-			// existing ones—this increments it by the proper amount.
-			allocations.stream().forEach(i -> {
-				i.entry.ref();
-				objects.set(i.descriptor, i.entry);
-			});
-
-			// Just in case.
+			// Forget the allocations, so that close() won’t do anything.
 			allocations.clear();
 		}
 
 		@Override
 		public void close() {
+			// Close all the descriptors we added.
+			for(final int descriptor : allocations) {
+				try {
+					DescriptorTable.this.close(descriptor);
+				} catch(final BadDescriptorException exp) {
+					// This indicates that someone else closed the descriptor
+					// while the Allocator still existed. This is a bug. If the
+					// user of Allocator did it themselves, they shouldn’t
+					// have, because every descriptor must only be closed once,
+					// and an uncommitted Allocator is the one responsible for
+					// closing its descriptors. If someone else did it, then
+					// they were closing a descriptor they didn’t own (because
+					// it was the Allocator and the Allocator’s user who own
+					// the new descriptors the Allocator creates).
+					throw new RuntimeException(exp);
+				}
+			}
+			allocations.clear();
 		}
 	}
 
@@ -228,6 +148,11 @@ public final class DescriptorTable {
 	private final ArrayList<ReferencedValue> objects;
 
 	/**
+	 * The lowest descriptor number that is closed.
+	 */
+	private int firstEmpty;
+
+	/**
 	 * Constructs an empty {@code DescriptorTable}.
 	 *
 	 * @param context The OpenComputers context.
@@ -236,6 +161,7 @@ public final class DescriptorTable {
 		super();
 		this.context = Objects.requireNonNull(context);
 		objects = new ArrayList<ReferencedValue>();
+		firstEmpty = 0;
 	}
 
 	/**
@@ -284,6 +210,12 @@ public final class DescriptorTable {
 				}
 			}
 		}
+
+		// Populate the next empty descriptor.
+		firstEmpty = objects.indexOf(null);
+		if(firstEmpty == -1) {
+			firstEmpty = objects.size();
+		}
 	}
 
 	/**
@@ -309,6 +241,54 @@ public final class DescriptorTable {
 	}
 
 	/**
+	 * Adds a new value to the descriptor table.
+	 *
+	 * @param value The value to add.
+	 * @return The new descriptor.
+	 */
+	public int add(final Value value) {
+		// Sanity check.
+		Objects.requireNonNull(value);
+
+		// Select the descriptor to use.
+		final int descriptor = firstEmpty;
+
+		// Get hold of the proper ReferencedValue object.
+		final ReferencedValue entry;
+		final ReferencedValue existingEntry = objects.stream().filter(i -> i != null && i.value == value).findAny().orElse(null);
+		if(existingEntry != null) {
+			// There’s already a ReferencedValue for this Value in the table.
+			// Reuse it.
+			entry = existingEntry;
+		} else {
+			// There’s no ReferencedValue for this Value in the table. Create a
+			// new one.
+			entry = new ReferencedValue(value);
+		}
+
+		// Ref the obtained value and add it to the table.
+		entry.ref();
+		if(objects.size() <= descriptor) {
+			objects.add(entry);
+		} else {
+			objects.set(descriptor, entry);
+		}
+
+		// Update firstEmpty. The current descriptor was previously the first
+		// empty. It is no longer empty. Therefore the new first empty
+		// descriptor must be at a higher index, so there is no need to search
+		// over the whole list, only those positions above the new descriptor.
+		final int subListEmptyPos = objects.subList(descriptor + 1, objects.size()).indexOf(null);
+		if(subListEmptyPos == -1) {
+			firstEmpty = objects.size();
+		} else {
+			firstEmpty = descriptor + 1 + subListEmptyPos;
+		}
+
+		return descriptor;
+	}
+
+	/**
 	 * Closes a descriptor.
 	 *
 	 * @param descriptor The descriptor to close.
@@ -319,6 +299,7 @@ public final class DescriptorTable {
 		final ReferencedValue entry = getEntry(descriptor);
 		objects.set(descriptor, null);
 		entry.unref(context);
+		firstEmpty = Math.min(firstEmpty, descriptor);
 	}
 
 	/**
@@ -401,5 +382,6 @@ public final class DescriptorTable {
 	public void closeAll() {
 		objects.stream().filter(i -> i != null).forEach(i -> i.unref(context));
 		objects.clear();
+		firstEmpty = 0;
 	}
 }
