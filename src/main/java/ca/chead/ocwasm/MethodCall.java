@@ -242,7 +242,7 @@ public abstract class MethodCall implements AutoCloseable {
 	/**
 	 * The parameters to pass to the method.
 	 */
-	public final Object[] parameters;
+	protected final Object[] parameters;
 
 	/**
 	 * The opaque values referenced by this method call.
