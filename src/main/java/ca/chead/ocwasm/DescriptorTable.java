@@ -1,6 +1,8 @@
 package ca.chead.ocwasm;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import li.cil.oc.api.machine.Context;
 import li.cil.oc.api.machine.Value;
@@ -48,6 +50,17 @@ public final class DescriptorTable {
 			final int descriptor = DescriptorTable.this.add(value);
 			allocations.add(descriptor);
 			return descriptor;
+		}
+
+		/**
+		 * Returns the allocations that have been made using this allocator.
+		 *
+		 * Only the uncommitted allocations are returned.
+		 *
+		 * @return The uncommitted allocations.
+		 */
+		public List<Integer> getAllocatedDescriptors() {
+			return Collections.unmodifiableList(allocations);
 		}
 
 		/**
