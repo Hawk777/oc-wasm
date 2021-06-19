@@ -33,17 +33,6 @@ public final class CallResult {
 	}
 
 	/**
-	 * Constructs a {@code CallResult} for a successful method call.
-	 *
-	 * @param result The CBOR-encoded result of the method call.
-	 */
-	public CallResult(final byte[] result) {
-		super();
-		this.result = Objects.requireNonNull(result);
-		errorCode = null;
-	}
-
-	/**
 	 * Constructs a {@code CallResult} for a failed method call.
 	 *
 	 * @param errorCode The error code.

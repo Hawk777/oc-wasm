@@ -20,7 +20,6 @@ import ca.chead.ocwasm.WrappedException;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -1014,12 +1013,11 @@ public final class Component {
 			// the value is actually in the method return. To avoid that,
 			// CBOR-encode the result immediately, thus pushing such objects
 			// into the descriptor table.
-			final byte[] cbor;
+			callResult = new CallResult(result);
 			try(DescriptorTable.Allocator alloc = descriptors.new Allocator()) {
-				cbor = CBOR.toCBORSequence(Arrays.stream(result), alloc);
+				callResult.encode(alloc);
 				alloc.commit();
 			}
-			callResult = new CallResult(cbor);
 			// Dispose the completed call.
 			call.close();
 			return 1;
