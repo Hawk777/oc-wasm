@@ -31,46 +31,31 @@ public final class Descriptor {
 	private final DescriptorTable descriptors;
 
 	/**
-	 * The {@code component} syscall module.
-	 */
-	private final Component component;
-
-	/**
 	 * Constructs a new {@code Descriptor}.
 	 *
 	 * @param descriptors The descriptor table for opaque values.
-	 * @param component The {@code component} syscall module.
 	 */
-	public Descriptor(final DescriptorTable descriptors, final Component component) {
+	public Descriptor(final DescriptorTable descriptors) {
 		super();
 		this.descriptors = Objects.requireNonNull(descriptors);
-		this.component = Objects.requireNonNull(component);
 	}
 
 	/**
 	 * Closes a descriptor.
 	 *
-	 * If this was the last descriptor referring to a particular opaque value,
-	 * the opaque value is disposed.
-	 *
-	 * This must only be invoked when no method call is in progress nor is a
-	 * call result waiting for retrieval.
+	 * If this was the last reference to a particular opaque value, the opaque
+	 * value is disposed.
 	 *
 	 * @param descriptor The descriptor number to close.
-	 * @return Zero on success; {@link ErrorCode#BAD_DESCRIPTOR} if the
-	 * descriptor does not exist; or {@link ErrorCode#QUEUE_FULL} if a method
-	 * call is in progress or a result has not yet been fetched.
+	 * @return Zero on success, or {@link ErrorCode#BAD_DESCRIPTOR} if the
+	 * descriptor does not exist.
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
 	public int close(final int descriptor) throws WrappedException {
 		return SyscallWrapper.wrap(() -> {
-			if(component.canCloseDescriptor()) {
-				descriptors.close(descriptor);
-				return 0;
-			} else {
-				return ErrorCode.QUEUE_FULL.asNegative();
-			}
+			descriptors.close(descriptor);
+			return 0;
 		});
 	}
 

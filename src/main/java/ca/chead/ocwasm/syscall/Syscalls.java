@@ -87,7 +87,7 @@ public final class Syscalls {
 		descriptors = new DescriptorTable(machine);
 		component = new Component(machine, memory, descriptors);
 		computer = new Computer(machine, cpu, memory, descriptors);
-		descriptor = new Descriptor(descriptors, component);
+		descriptor = new Descriptor(descriptors);
 		execute = new Execute(cpu, memory);
 		modules = Collections.unmodifiableList(Arrays.asList(new Object[]{component, computer, descriptor, execute}));
 	}
@@ -111,7 +111,7 @@ public final class Syscalls {
 		descriptors = new DescriptorTable(machine, valuePool, root.getCompoundTag(NBT_DESCRIPTORS));
 		component = new Component(machine, memory, valuePool, descriptors, root.getCompoundTag(NBT_COMPONENT));
 		computer = new Computer(machine, cpu, memory, descriptors, root.getCompoundTag(NBT_COMPUTER));
-		descriptor = new Descriptor(descriptors, component);
+		descriptor = new Descriptor(descriptors);
 		execute = new Execute(cpu, memory, snapshot.executeBuffer);
 		modules = Collections.unmodifiableList(Arrays.asList(new Object[]{component, computer, descriptor, execute}));
 	}

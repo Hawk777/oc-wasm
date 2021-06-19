@@ -830,20 +830,6 @@ public final class Component {
 	}
 
 	/**
-	 * Checks whether it is safe to close a descriptor at this time.
-	 *
-	 * @return {@code true} if it is safe to close a descriptor, or {@code
-	 * false} if not.
-	 */
-	public boolean canCloseDescriptor() {
-		// This avoids complicated problems in which an opaque value is
-		// somewhere inside pendingCall or callResult when the last descriptor
-		// to it is closed, resulting in it being disposed even though it
-		// shouldn’t be.
-		return pendingCall == null && callResult == null;
-	}
-
-	/**
 	 * Performs an indirect call, if needed.
 	 */
 	public void runSynchronized() {
