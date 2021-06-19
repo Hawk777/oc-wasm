@@ -890,6 +890,40 @@ public final class Component {
 	}
 
 	/**
+	 * Prepares the syscall modules prior to running user code on the computer
+	 * thread.
+	 */
+	public void preRunThreaded() {
+		// Consider the following sequence of events:
+		// 1. Opaque value V is held in exactly one location, descriptor 0.
+		// 2. User code starts a method call to an indirect method.
+		// 3. User code returns.
+		// 4. The method call is executed on the server thread. It returns V,
+		//    which is stashed in callResult. Because this is the server
+		//    thread, callResult is not immediately CBOR-encoded.
+		// 5. User code is invoked for its next timeslice.
+		// 6. User code closes descriptor 0.
+		// 7. Descriptor 0 was the only refcounted reference to V, so V is
+		//    disposed.
+		// 8. User code calls invokeEnd, which allocates a descriptor for V and
+		//    returns it in the CBOR-encoded result.
+		//
+		// Now user code has a descriptor to V, which has been disposed! This
+		// would be bad. To avoid it, we ensure that user code can never
+		// execute while a non-CBOR-encoded callResult exists (if the
+		// callResult has been CBOR-encoded everything is fine because that
+		// would allocate a second descriptor for V). For direct calls this is
+		// accomplished by eagerly CBOR-encoding right at the point of method
+		// call. For indirect calls we don’t want to waste precious
+		// server-thread time on CBOR encoding; however, we also know that user
+		// code cannot be running at the same time, so we can just force
+		// callResult to be CBOR-encoded right before starting the user code.
+		if(callResult != null && callResult.result != null) {
+			callResult.result.get();
+		}
+	}
+
+	/**
 	 * Given a component UUID, finds the component.
 	 *
 	 * @param addressPointer A pointer to a string which is the UUID of a

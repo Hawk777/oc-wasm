@@ -82,6 +82,9 @@ public final class Run extends State {
 			return new Transition(this, SYNCHRONOUS_CALL);
 		}
 
+		// Prepare the syscalls.
+		syscalls.preRunThreaded();
+
 		// Initialize the free memory counter.
 		instance.freeMemory = (cpu.getInstalledRAM() - compileResult.moduleSize(memory)) / ModuleBase.FREE_MEMORY_UNIT;
 

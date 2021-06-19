@@ -80,6 +80,9 @@ public final class InstantiateClean extends State implements ModuleConstructionL
 		// Instantiate the syscall modules.
 		final Syscalls syscalls = new Syscalls(machine, cpu, memory);
 
+		// Prepare the syscalls.
+		syscalls.preRunThreaded();
+
 		// Instantiate the module.
 		final ModuleBase instance;
 		try {

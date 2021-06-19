@@ -117,6 +117,14 @@ public final class Syscalls {
 	}
 
 	/**
+	 * Prepares the syscall modules prior to running user code on the computer
+	 * thread.
+	 */
+	public void preRunThreaded() {
+		component.preRunThreaded();
+	}
+
+	/**
 	 * Saves the {@code Syscalls} into an NBT structure.
 	 *
 	 * @param root The root NBT tag to add data to.
