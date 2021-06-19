@@ -306,7 +306,7 @@ public final class Component {
 
 		// Load pendingCall.
 		if(root.hasKey(NBT_PENDING_CALL)) {
-			pendingCall = new MethodCall(root.getCompoundTag(NBT_PENDING_CALL), valuePool, descriptors);
+			pendingCall = MethodCall.load(root.getCompoundTag(NBT_PENDING_CALL), valuePool, descriptors);
 		} else {
 			pendingCall = null;
 		}
@@ -624,7 +624,7 @@ public final class Component {
 			final String method = WasmString.toJava(memory, methodPointer, methodLength);
 			final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer, paramsLength);
 			final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors);
-			return new MethodCall(address, method, params);
+			return new MethodCall.Component(address, method, params);
 		}));
 	}
 
@@ -647,7 +647,7 @@ public final class Component {
 	 */
 	@Syscall
 	public int invokeValue(final int descriptor, final int paramsPointer, final int paramsLength) throws WrappedException {
-		return SyscallWrapper.wrap(() -> invokeValueSpecialCommon(descriptor, paramsPointer, paramsLength, MethodCall.SpecialMethod.CALL));
+		return SyscallWrapper.wrap(() -> invokeValueSpecialCommon(descriptor, paramsPointer, paramsLength, MethodCall.ValueSpecial.Method.CALL));
 	}
 
 	/**
@@ -670,7 +670,7 @@ public final class Component {
 	 */
 	@Syscall
 	public int invokeValueIndexedRead(final int descriptor, final int paramsPointer, final int paramsLength) throws WrappedException {
-		return SyscallWrapper.wrap(() -> invokeValueSpecialCommon(descriptor, paramsPointer, paramsLength, MethodCall.SpecialMethod.APPLY));
+		return SyscallWrapper.wrap(() -> invokeValueSpecialCommon(descriptor, paramsPointer, paramsLength, MethodCall.ValueSpecial.Method.APPLY));
 	}
 
 	/**
@@ -693,7 +693,7 @@ public final class Component {
 	 */
 	@Syscall
 	public int invokeValueIndexedWrite(final int descriptor, final int paramsPointer, final int paramsLength) throws WrappedException {
-		return SyscallWrapper.wrap(() -> invokeValueSpecialCommon(descriptor, paramsPointer, paramsLength, MethodCall.SpecialMethod.UNAPPLY));
+		return SyscallWrapper.wrap(() -> invokeValueSpecialCommon(descriptor, paramsPointer, paramsLength, MethodCall.ValueSpecial.Method.UNAPPLY));
 	}
 
 	/**
@@ -722,7 +722,7 @@ public final class Component {
 				final String method = WasmString.toJava(memory, methodPointer, methodLength);
 				final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer, paramsLength);
 				final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors);
-				return new MethodCall(target, method, params);
+				return new MethodCall.ValueRegular(target, method, params);
 			}
 		}));
 	}
@@ -874,12 +874,12 @@ public final class Component {
 	 * the Wasm module instance’s fault and should be reported during the start
 	 * of invocation rather than the end of invocation.
 	 */
-	private int invokeValueSpecialCommon(final int descriptor, final int paramsPointer, final int paramsLength, final MethodCall.SpecialMethod method) throws SyscallErrorException {
+	private int invokeValueSpecialCommon(final int descriptor, final int paramsPointer, final int paramsLength, final MethodCall.ValueSpecial.Method method) throws SyscallErrorException {
 		return invokeCommon(() -> {
 			try(ValueReference target = descriptors.get(descriptor)) {
 				final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer, paramsLength);
 				final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors);
-				return new MethodCall(target, method, params);
+				return new MethodCall.ValueSpecial(target, method, params);
 			}
 		});
 	}

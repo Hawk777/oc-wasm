@@ -12,80 +12,13 @@ import li.cil.oc.api.machine.LimitReachedException;
 import li.cil.oc.api.machine.Machine;
 import li.cil.oc.api.machine.Value;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagInt;
-import net.minecraft.nbt.NBTTagString;
+import net.minecraftforge.common.util.Constants;
 
 /**
  * All the information needed to call a method on a component or value.
  */
-public final class MethodCall implements AutoCloseable {
-	/**
-	 * The possible special methods that can be performed on an opaque value.
-	 *
-	 * The elements of this enumeration are stored by ordinal in NBT in world
-	 * saves. They must not be reordered or deleted.
-	 */
-	public enum SpecialMethod {
-		/**
-		 * The “call” method, which calls a callable opaque value.
-		 */
-		CALL {
-			@Override
-			public Object[] invoke(final Value value, final Machine machine, final Arguments params) throws NoSuchComponentOrValueMethodException {
-				try {
-					return value.call(machine, params);
-				} catch(final RuntimeException exp) {
-					if(exp.getClass() == RuntimeException.class) {
-						// It’s not certain, but this is *probably* thrown by
-						// the AbstractValue.call() implementation and is
-						// telling us that this Value is not callable.
-						// Unfortunately OpenComputers doesn’t give a reliable
-						// way to distinguish that from other
-						// RuntimeExceptions.
-						throw new NoSuchComponentOrValueMethodException();
-					} else {
-						throw exp;
-					}
-				}
-			}
-		},
-
-		/**
-		 * The “apply” method, which reads from an index of the opaque value.
-		 */
-		APPLY {
-			@Override
-			public Object[] invoke(final Value value, final Machine machine, final Arguments params) {
-				return new Object[]{value.apply(machine, params)};
-			}
-		},
-
-		/**
-		 * The “unapply” method, which writes to an index of the opaque value.
-		 */
-		UNAPPLY {
-			@Override
-			public Object[] invoke(final Value value, final Machine machine, final Arguments params) {
-				value.unapply(machine, params);
-				return OCWasm.ZERO_OBJECTS;
-			}
-		};
-
-		/**
-		 * Invokes the special method.
-		 *
-		 * @param value The value to invoke on.
-		 * @param machine The machine doing the invoking.
-		 * @param params The parameters to pass.
-		 * @return The method’s return value.
-		 * @throws NoSuchComponentOrValueMethodException If the method does not
-		 * exist.
-		 */
-		public abstract Object[] invoke(Value value, Machine machine, Arguments params) throws NoSuchComponentOrValueMethodException;
-	}
-
+public abstract class MethodCall implements AutoCloseable {
 	/**
 	 * An implementation of {@code li.cil.oc.api.machine.Arguments} that wraps
 	 * an array of {@code Object}.
@@ -304,65 +237,48 @@ public final class MethodCall implements AutoCloseable {
 	private static final String NBT_PARAMETERS = "parameters";
 
 	/**
-	 * The target on which to invoke a method.
-	 *
-	 * This is either a {@code String} holding the UUID of the component, or a
-	 * {@code ValueReference} holding an opaque value which has methods.
-	 */
-	public final Object target;
-
-	/**
-	 * The method.
-	 *
-	 * This is either a {@code String} to invoke a method, or a {@link
-	 * SpecialMethod} to invoke a special method on an opaque value.
-	 */
-	public final Object method;
-
-	/**
 	 * The parameters to pass to the method.
 	 */
 	public final Object[] parameters;
 
 	/**
-	 * Constructs a new {@code MethodCall} to call a method on a component.
+	 * Loads a {@code MethodCall} that was previously saved.
 	 *
-	 * @param address The UUID of the component.
-	 * @param method The name of the method.
-	 * @param parameters The parameters to pass to the method.
+	 * @param root The compound that was previously returned from {@link
+	 * #save}.
+	 * @param valuePool The value pool.
+	 * @param descriptors The descriptor table, which must already have been
+	 * restored.
+	 * @return The new {@code MethodCall} object.
 	 */
-	public MethodCall(final String address, final String method, final Object[] parameters) {
-		super();
-		this.target = Objects.requireNonNull(address);
-		this.method = Objects.requireNonNull(method);
-		this.parameters = Objects.requireNonNull(parameters);
+	public static MethodCall load(final NBTTagCompound root, final ReferencedValue[] valuePool, final DescriptorTable descriptors) {
+		final byte targetTag = root.getTagId(NBT_TARGET);
+		final byte methodTag = root.getTagId(NBT_METHOD);
+		if(targetTag == Constants.NBT.TAG_STRING && methodTag == Constants.NBT.TAG_STRING) {
+			// Target and method are both strings → this is a component method
+			// call.
+			return new Component(root, valuePool, descriptors);
+		} else if(targetTag == Constants.NBT.TAG_INT && methodTag == Constants.NBT.TAG_STRING) {
+			// Target is an integer, method is a string → this is a value
+			// regular method call.
+			return new ValueRegular(root, valuePool, descriptors);
+		} else if(targetTag == Constants.NBT.TAG_INT && methodTag == Constants.NBT.TAG_INT) {
+			// Target and method are both integers → this is a value special
+			// method call.
+			return new ValueSpecial(root, valuePool, descriptors);
+		} else {
+			// WTF?
+			throw new RuntimeException("Corrupt NBT data");
+		}
 	}
 
 	/**
-	 * Constructs a new {@code MethodCall} to call a special method on an opaque value.
+	 * Constructs a new {@code MethodCall}.
 	 *
-	 * @param value The opaque value, which is cloned.
-	 * @param method The method.
 	 * @param parameters The parameters to pass to the method.
 	 */
-	public MethodCall(final ValueReference value, final SpecialMethod method, final Object[] parameters) {
+	protected MethodCall(final Object[] parameters) {
 		super();
-		this.target = value.clone();
-		this.method = Objects.requireNonNull(method);
-		this.parameters = Objects.requireNonNull(parameters);
-	}
-
-	/**
-	 * Constructs a new {@code MethodCall} to call a regular method on an opaque value.
-	 *
-	 * @param value The opaque value, which is cloned.
-	 * @param method The name of the method.
-	 * @param parameters The parameters to pass to the method.
-	 */
-	public MethodCall(final ValueReference value, final String method, final Object[] parameters) {
-		super();
-		this.target = value.clone();
-		this.method = Objects.requireNonNull(method);
 		this.parameters = Objects.requireNonNull(parameters);
 	}
 
@@ -375,32 +291,8 @@ public final class MethodCall implements AutoCloseable {
 	 * @param descriptors The descriptor table, which must already have been
 	 * restored.
 	 */
-	public MethodCall(final NBTTagCompound root, final ReferencedValue[] valuePool, final DescriptorTable descriptors) {
+	protected MethodCall(final NBTTagCompound root, final ReferencedValue[] valuePool, final DescriptorTable descriptors) {
 		super();
-
-		// Load the target. It is either a string UUID for a component call or
-		// an integer value pool index for an opaque value call.
-		{
-			final NBTBase targetNBT = root.getTag(NBT_TARGET);
-			if(targetNBT instanceof NBTTagString) {
-				target = ((NBTTagString) targetNBT).getString();
-			} else {
-				final int index = ((NBTTagInt) targetNBT).getInt();
-				target = new ValueReference(valuePool[index]);
-			}
-		}
-
-		// Load the method. It is either a string method name or an integer
-		// SpecialMethod ordinal.
-		{
-			final NBTBase methodNBT = root.getTag(NBT_METHOD);
-			if(methodNBT instanceof NBTTagString) {
-				this.method = ((NBTTagString) methodNBT).getString();
-			} else {
-				final int ordinal = ((NBTTagInt) methodNBT).getInt();
-				this.method = Arrays.stream(SpecialMethod.values()).filter(i -> i.ordinal() == ordinal).findAny().get();
-			}
-		}
 
 		// When save() persisted the MethodCall, if it encountered any opaque
 		// values, it allocated new descriptors for them and represented them
@@ -433,11 +325,6 @@ public final class MethodCall implements AutoCloseable {
 				throw new RuntimeException(exp);
 			}
 		});
-
-		// Sanity check.
-		if(target instanceof String && method instanceof SpecialMethod) {
-			throw new RuntimeException("Save data is corrupt: MethodCall cannot target SpecialMethod on component UUID");
-		}
 	}
 
 	/**
@@ -455,7 +342,7 @@ public final class MethodCall implements AutoCloseable {
 	 * the method.
 	 * @throws OtherException If the method failed.
 	 */
-	public Object[] invokeDirect(final Machine machine) throws NoSuchComponentException, NoSuchComponentOrValueMethodException, InProgressException, BadParametersException, OtherException {
+	public final Object[] invokeDirect(final Machine machine) throws NoSuchComponentException, NoSuchComponentOrValueMethodException, InProgressException, BadParametersException, OtherException {
 		return invoke(machine, true);
 	}
 
@@ -472,7 +359,7 @@ public final class MethodCall implements AutoCloseable {
 	 * the method.
 	 * @throws OtherException If the method failed.
 	 */
-	public Object[] invokeIndirect(final Machine machine) throws NoSuchComponentException, NoSuchComponentOrValueMethodException, BadParametersException, OtherException {
+	public final Object[] invokeIndirect(final Machine machine) throws NoSuchComponentException, NoSuchComponentOrValueMethodException, BadParametersException, OtherException {
 		try {
 			return invoke(machine, false);
 		} catch(final InProgressException exp) {
@@ -502,26 +389,13 @@ public final class MethodCall implements AutoCloseable {
 		// Sanity check.
 		Objects.requireNonNull(machine);
 
-		// If this is a regular method call, check that the component is
-		// accessible (if targeting a component) and check that we are not
-		// trying to directly invoke an indirect method. If this is a special
-		// method call, then it must be on a value not a component (so the
-		// accessibility check is irrelevant) and it is always direct (so the
-		// indirect check is irrelevant).
-		if(method instanceof String) {
-			final Object methodMapValue;
-			if(target instanceof String) {
-				methodMapValue = ComponentUtils.getComponent(machine, (String) target).host();
-			} else if(target instanceof ValueReference) {
-				methodMapValue = ((ValueReference) target).get();
-			} else {
-				throw new RuntimeException("Unknown target type " + target.getClass());
-			}
-			final Callback cb = machine.methods(methodMapValue).get(method);
-			if(cb == null) {
-				throw new NoSuchComponentOrValueMethodException();
-			}
-			if(direct && !cb.direct()) {
+		// Perform any preliminary checks, and, if a Callback object is
+		// available for this method, verify that the directness of the call is
+		// correct, nothing that direct calls can also be called indirectly but
+		// indirect calls cannot be called directly.
+		final Callback callback = getCallback(machine);
+		if(callback != null) {
+			if(direct && !callback.direct()) {
 				throw new InProgressException();
 			}
 		}
@@ -529,24 +403,7 @@ public final class MethodCall implements AutoCloseable {
 		// Perform the call.
 		final Object[] result;
 		try {
-			if(method instanceof String) {
-				if(target instanceof String) {
-					result = machine.invoke((String) target, (String) method, parameters);
-				} else if(target instanceof ValueReference) {
-					result = machine.invoke(((ValueReference) target).get(), (String) method, parameters);
-				} else {
-					throw new RuntimeException("Unknown target type " + target.getClass());
-				}
-			} else if(method instanceof SpecialMethod) {
-				if(target instanceof ValueReference) {
-					final Object[] unconverted = ((SpecialMethod) method).invoke(((ValueReference) target).get(), machine, new Arguments(parameters));
-					result = OCWasm.convertValues(unconverted);
-				} else {
-					throw new RuntimeException("Unknown target type " + target.getClass());
-				}
-			} else {
-				throw new RuntimeException("Unknown method type " + method);
-			}
+			result = invokeImpl(machine);
 		} catch(final NoSuchMethodException exp) {
 			throw new NoSuchComponentOrValueMethodException();
 		} catch(final LimitReachedException exp) {
@@ -575,24 +432,318 @@ public final class MethodCall implements AutoCloseable {
 	 */
 	public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) {
 		final NBTTagCompound root = new NBTTagCompound();
-		if(target instanceof String) {
-			root.setString(NBT_TARGET, (String) target);
-		} else {
-			root.setInteger(NBT_TARGET, valuePool.store(((ValueReference) target).get()));
-		}
-		if(method instanceof String) {
-			root.setString(NBT_METHOD, (String) method);
-		} else {
-			root.setInteger(NBT_METHOD, ((SpecialMethod) method).ordinal());
-		}
 		root.setByteArray(NBT_PARAMETERS, CBOR.toCBORSequence(Arrays.stream(parameters), descriptorTable, descriptorListener));
 		return root;
 	}
 
 	@Override
 	public void close() {
-		if(target instanceof ValueReference) {
-			((ValueReference) target).close();
+	}
+
+	/**
+	 * Returns the callback object to check for proper invocation, returns
+	 * {@code null} if no callback should be checked, or throws an exception if
+	 * preliminary checking for method validity failed.
+	 *
+	 * @param machine The machine.
+	 * @return The callback to examine.
+	 * @throws NoSuchComponentException If the target is a component and the
+	 * component does not exist or is not visible from this computer.
+	 * @throws NoSuchComponentOrValueMethodException If the method does not
+	 * exist on the target.
+	 */
+	protected abstract Callback getCallback(Machine machine) throws NoSuchComponentException, NoSuchComponentOrValueMethodException;
+
+	/**
+	 * Performs the core logic of invoking the method.
+	 *
+	 * @param machine The machine.
+	 * @return The result, converted to proper types if that is not done by
+	 * OpenComputers.
+	 * @throws Exception If the method call fails.
+	 */
+	protected abstract Object[] invokeImpl(Machine machine) throws Exception;
+
+	/**
+	 * A method call to a regular method on a component.
+	 */
+	public static final class Component extends MethodCall {
+		/**
+		 * The target component address on which to invoke a method.
+		 */
+		public final String target;
+
+		/**
+		 * The method name.
+		 */
+		public final String method;
+
+		/**
+		 * Constructs a new {@code Component}.
+		 *
+		 * @param address The UUID of the component.
+		 * @param method The name of the method.
+		 * @param parameters The parameters to pass to the method.
+		 */
+		public Component(final String address, final String method, final Object[] parameters) {
+			super(parameters);
+			target = Objects.requireNonNull(address);
+			this.method = Objects.requireNonNull(method);
+		}
+
+		/**
+		 * Loads a {@code Component} that was previously saved.
+		 *
+		 * @param root The compound that was previously returned from {@link
+		 * #save}.
+		 * @param valuePool The value pool.
+		 * @param descriptors The descriptor table, which must already have
+		 * been restored.
+		 */
+		public Component(final NBTTagCompound root, final ReferencedValue[] valuePool, final DescriptorTable descriptors) {
+			super(root, valuePool, descriptors);
+			target = root.getString(NBT_TARGET);
+			method = root.getString(NBT_METHOD);
+		}
+
+		@Override
+		protected Callback getCallback(final Machine machine) throws NoSuchComponentException, NoSuchComponentOrValueMethodException {
+			final Callback cb = machine.methods(ComponentUtils.getComponent(machine, target).host()).get(method);
+			if(cb == null) {
+				throw new NoSuchComponentOrValueMethodException();
+			}
+			return cb;
+		}
+
+		@Override
+		protected Object[] invokeImpl(final Machine machine) throws Exception {
+			return machine.invoke(target, method, parameters);
+		}
+
+		@Override
+		public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) {
+			final NBTTagCompound root = super.save(valuePool, descriptorTable, descriptorListener);
+			root.setString(NBT_TARGET, target);
+			root.setString(NBT_METHOD, method);
+			return root;
+		}
+	}
+
+	/**
+	 * A method call to a regular method on an opaque value.
+	 */
+	public static final class ValueRegular extends MethodCall {
+		/**
+		 * The target opaque value on which to invoke a method.
+		 */
+		public final ValueReference target;
+
+		/**
+		 * The method name.
+		 */
+		public final String method;
+
+		/**
+		 * Constructs a new {@code ValueRegular}.
+		 *
+		 * @param value The opaque value, which is cloned.
+		 * @param method The name of the method.
+		 * @param parameters The parameters to pass to the method.
+		 */
+		public ValueRegular(final ValueReference value, final String method, final Object[] parameters) {
+			super(parameters);
+			target = value.clone();
+			this.method = Objects.requireNonNull(method);
+		}
+
+		/**
+		 * Loads a {@code ValueRegular} that was previously saved.
+		 *
+		 * @param root The compound that was previously returned from {@link
+		 * #save}.
+		 * @param valuePool The value pool.
+		 * @param descriptors The descriptor table, which must already have
+		 * been restored.
+		 */
+		public ValueRegular(final NBTTagCompound root, final ReferencedValue[] valuePool, final DescriptorTable descriptors) {
+			super(root, valuePool, descriptors);
+			target = new ValueReference(valuePool[root.getInteger(NBT_TARGET)]);
+			method = root.getString(NBT_METHOD);
+		}
+
+		@Override
+		protected Callback getCallback(final Machine machine) throws NoSuchComponentOrValueMethodException {
+			final Callback cb = machine.methods(target.get()).get(method);
+			if(cb == null) {
+				throw new NoSuchComponentOrValueMethodException();
+			}
+			return cb;
+		}
+
+		@Override
+		protected Object[] invokeImpl(final Machine machine) throws Exception {
+			return machine.invoke(target.get(), method, parameters);
+		}
+
+		@Override
+		public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) {
+			final NBTTagCompound root = super.save(valuePool, descriptorTable, descriptorListener);
+			root.setInteger(NBT_TARGET, valuePool.store(target.get()));
+			root.setString(NBT_METHOD, method);
+			return root;
+		}
+
+		@Override
+		public void close() {
+			super.close();
+			target.close();
+		}
+	}
+
+	/**
+	 * A method call to a special method on an opaque value.
+	 */
+	public static final class ValueSpecial extends MethodCall {
+		/**
+		 * The possible special methods that can be performed on an opaque
+		 * value.
+		 *
+		 * The elements of this enumeration are stored by ordinal in NBT in
+		 * world saves. They must not be reordered or deleted.
+		 */
+		public enum Method {
+			/**
+			 * The “call” method, which calls a callable opaque value.
+			 */
+			CALL {
+				@Override
+				public Object[] invoke(final Value value, final Machine machine, final Arguments params) throws NoSuchComponentOrValueMethodException {
+					try {
+						return value.call(machine, params);
+					} catch(final RuntimeException exp) {
+						if(exp.getClass() == RuntimeException.class) {
+							// It’s not certain, but this is *probably* thrown
+							// by the AbstractValue.call() implementation and
+							// is telling us that this Value is not callable.
+							// Unfortunately OpenComputers doesn’t give a
+							// reliable way to distinguish that from other
+							// RuntimeExceptions.
+							throw new NoSuchComponentOrValueMethodException();
+						} else {
+							throw exp;
+						}
+					}
+				}
+			},
+
+			/**
+			 * The “apply” method, which reads from an index of the opaque
+			 * value.
+			 */
+			APPLY {
+				@Override
+				public Object[] invoke(final Value value, final Machine machine, final Arguments params) {
+					return new Object[]{value.apply(machine, params)};
+				}
+			},
+
+			/**
+			 * The “unapply” method, which writes to an index of the opaque
+			 * value.
+			 */
+			UNAPPLY {
+				@Override
+				public Object[] invoke(final Value value, final Machine machine, final Arguments params) {
+					value.unapply(machine, params);
+					return OCWasm.ZERO_OBJECTS;
+				}
+			};
+
+			/**
+			 * Invokes the special method.
+			 *
+			 * @param value The value to invoke on.
+			 * @param machine The machine doing the invoking.
+			 * @param params The parameters to pass.
+			 * @return The method’s return value.
+			 * @throws NoSuchComponentOrValueMethodException If the method does
+			 * not exist.
+			 */
+			public abstract Object[] invoke(Value value, Machine machine, Arguments params) throws NoSuchComponentOrValueMethodException;
+		}
+
+		/**
+		 * The target opaque value on which to invoke a method.
+		 */
+		public final ValueReference target;
+
+		/**
+		 * The method.
+		 */
+		public final Method method;
+
+		/**
+		 * Constructs a new {@code ValueSpecial}.
+		 *
+		 * @param value The opaque value, which is cloned.
+		 * @param method The method.
+		 * @param parameters The parameters to pass to the method.
+		 */
+		public ValueSpecial(final ValueReference value, final Method method, final Object[] parameters) {
+			super(parameters);
+			target = value.clone();
+			this.method = Objects.requireNonNull(method);
+		}
+
+		/**
+		 * Loads a {@code ValueSpecial} that was previously saved.
+		 *
+		 * @param root The compound that was previously returned from {@link
+		 * #save}.
+		 * @param valuePool The value pool.
+		 * @param descriptors The descriptor table, which must already have
+		 * been restored.
+		 */
+		public ValueSpecial(final NBTTagCompound root, final ReferencedValue[] valuePool, final DescriptorTable descriptors) {
+			super(root, valuePool, descriptors);
+			target = new ValueReference(valuePool[root.getInteger(NBT_TARGET)]);
+			final int ordinal = root.getInteger(NBT_METHOD);
+			method = Arrays.stream(Method.values()).filter(i -> i.ordinal() == ordinal).findAny().get();
+		}
+
+		/**
+		 * Returns {@code null} because special methods always exist (though
+		 * they may or may not do anything useful at runtime) and are always
+		 * direct.
+		 *
+		 * @param machine The machine.
+		 * @return {@code null}.
+		 */
+		@Override
+		protected Callback getCallback(final Machine machine) {
+			return null;
+		}
+
+		@Override
+		protected Object[] invokeImpl(final Machine machine) throws NoSuchComponentOrValueMethodException {
+			// Machine doesn’t have an API for making value special method
+			// calls cleanly, so we have to do the raw method call and then
+			// convert the return value(s).
+			return OCWasm.convertValues(method.invoke(target.get(), machine, new Arguments(parameters)));
+		}
+
+		@Override
+		public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) {
+			final NBTTagCompound root = super.save(valuePool, descriptorTable, descriptorListener);
+			root.setInteger(NBT_TARGET, valuePool.store(target.get()));
+			root.setInteger(NBT_METHOD, method.ordinal());
+			return root;
+		}
+
+		@Override
+		public void close() {
+			super.close();
+			target.close();
 		}
 	}
 }
