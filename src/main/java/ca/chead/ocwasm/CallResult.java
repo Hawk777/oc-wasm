@@ -153,4 +153,34 @@ public final class CallResult {
 		}
 		return root;
 	}
+
+	/**
+	 * Cancels the {@code CallResult}.
+	 *
+	 * This should not be called if the operation completes normally, only if
+	 * it is cancelled and the user code wishes to throw away the result rather
+	 * than retrieving it.
+	 *
+	 * The {@code CallResult} must have been encoded.
+	 *
+	 * @param descriptors The descriptor table.
+	 */
+	public void cancel(final DescriptorTable descriptors) {
+		if(result != null && !(result instanceof byte[])) {
+			throw new IllegalStateException("Unencoded CallResult objects cannot be cancelled");
+		}
+		for(final int i : descriptorsCreated) {
+			try {
+				descriptors.close(i);
+			} catch(final BadDescriptorException exp) {
+				// The descriptors were created by the method call and have not
+				// yet been exposed to the user application. If they were
+				// already closed, that’s a bug in the user application: it
+				// went and picked a random integer and closed it, without it
+				// being an actual, legal descriptor. However, user code *can*
+				// do that—it’s stupid but technically possible—so we shouldn’t
+				// actually blow up the world here, just ignore the error.
+			}
+		}
+	}
 }

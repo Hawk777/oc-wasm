@@ -809,6 +809,34 @@ public final class Component {
 	}
 
 	/**
+	 * Cancels an in-progress method call.
+	 *
+	 * If a method call has been started by {@link #invokeComponentMethod},
+	 * {@link #invokeValue}, {@link #invokeValueIndexedRead}, {@link
+	 * #invokeValueIndexedWrite}, or {@link #invokeValueMethod} and has not yet
+	 * completed, the method call does not happen. If the method call has
+	 * completed but its result has not yet been fetched via {@link
+	 * #invokeEnd}, the result is discarded.
+	 */
+	@Syscall
+	public void invokeCancel() throws WrappedException {
+		SyscallWrapper.wrap(() -> {
+			if(pendingCall != null) {
+				pendingCall.close();
+				pendingCall = null;
+			}
+			if(callResult != null) {
+				// CallResult objects can only be cancelled if they are
+				// encoded, so make sure that is the case.
+				encodeCallResult();
+				callResult.cancel(descriptors);
+				callResult = null;
+			}
+			return 0;
+		});
+	}
+
+	/**
 	 * Checks whether the component module requires an indirect call.
 	 *
 	 * @return {@code true} if an indirect call is needed, or {@code false} if
