@@ -10,8 +10,10 @@ import ca.chead.ocwasm.MemoryFaultException;
 import ca.chead.ocwasm.MemoryUtils;
 import ca.chead.ocwasm.MethodCall;
 import ca.chead.ocwasm.NoSuchComponentException;
+import ca.chead.ocwasm.ReferencedValue;
 import ca.chead.ocwasm.StringDecodeException;
 import ca.chead.ocwasm.SyscallErrorException;
+import ca.chead.ocwasm.ValuePool;
 import ca.chead.ocwasm.ValueReference;
 import ca.chead.ocwasm.WasmString;
 import ca.chead.ocwasm.WrappedException;
@@ -259,11 +261,12 @@ public final class Component {
 	 *
 	 * @param machine The machine on which the module operates.
 	 * @param memory The linear memory.
+	 * @param valuePool The value pool.
 	 * @param descriptors The descriptor table.
 	 * @param root The compound that was previously returned from {@link
 	 * #save}.
 	 */
-	public Component(final Machine machine, final ByteBuffer memory, final DescriptorTable descriptors, final NBTTagCompound root) {
+	public Component(final Machine machine, final ByteBuffer memory, final ReferencedValue[] valuePool, final DescriptorTable descriptors, final NBTTagCompound root) {
 		super();
 		this.machine = Objects.requireNonNull(machine);
 		this.memory = Objects.requireNonNull(memory);
@@ -303,7 +306,7 @@ public final class Component {
 
 		// Load pendingCall.
 		if(root.hasKey(NBT_PENDING_CALL)) {
-			pendingCall = new MethodCall(root.getCompoundTag(NBT_PENDING_CALL), descriptors);
+			pendingCall = new MethodCall(root.getCompoundTag(NBT_PENDING_CALL), valuePool, descriptors);
 		} else {
 			pendingCall = null;
 		}
@@ -937,11 +940,12 @@ public final class Component {
 	/**
 	 * Saves the {@code Component} into an NBT structure.
 	 *
+	 * @param valuePool The value pool to use to save opaque values.
 	 * @param descriptorListener A listener which is invoked and passed every
 	 * descriptor created during saving.
 	 * @return The created NBT tag.
 	 */
-	public NBTTagCompound save(final IntConsumer descriptorListener) {
+	public NBTTagCompound save(final ValuePool valuePool, final IntConsumer descriptorListener) {
 		final NBTTagCompound root = new NBTTagCompound();
 		if(list != null) {
 			final NBTTagList listNBT = new NBTTagList();
@@ -959,7 +963,7 @@ public final class Component {
 		// Don’t save methodsIndex; it is implicitly saved by skipping that
 		// many leading elements of methods in the previous block.
 		if(pendingCall != null) {
-			root.setTag(NBT_PENDING_CALL, pendingCall.save(descriptors, descriptorListener));
+			root.setTag(NBT_PENDING_CALL, pendingCall.save(valuePool, descriptors, descriptorListener));
 		}
 		if(callResult != null) {
 			root.setTag(NBT_CALL_RESULT, callResult.save());

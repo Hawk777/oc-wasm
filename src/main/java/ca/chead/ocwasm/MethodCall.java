@@ -371,35 +371,22 @@ public final class MethodCall implements AutoCloseable {
 	 *
 	 * @param root The compound that was previously returned from {@link
 	 * #save}.
+	 * @param valuePool The value pool.
 	 * @param descriptors The descriptor table, which must already have been
 	 * restored.
 	 */
-	public MethodCall(final NBTTagCompound root, final DescriptorTable descriptors) {
+	public MethodCall(final NBTTagCompound root, final ReferencedValue[] valuePool, final DescriptorTable descriptors) {
 		super();
 
-		// When save() persisted the MethodCall, if it encountered any opaque
-		// values, it allocated new descriptors for them and represented them
-		// in the NBT (either directly, in the case of target, or inside CBOR,
-		// in the case of parameters) via those descriptors. Those descriptors
-		// were not intentionally created by the Wasm module instance; rather,
-		// they only exist because save() created them. We should therefore
-		// keep track of them as we load, and close them at the end.
-		final ArrayList<Integer> descriptorsToClose = new ArrayList<Integer>();
-
 		// Load the target. It is either a string UUID for a component call or
-		// an integer descriptor for an opaque value call.
+		// an integer value pool index for an opaque value call.
 		{
 			final NBTBase targetNBT = root.getTag(NBT_TARGET);
 			if(targetNBT instanceof NBTTagString) {
-				this.target = ((NBTTagString) targetNBT).getString();
+				target = ((NBTTagString) targetNBT).getString();
 			} else {
-				final int descriptor = ((NBTTagInt) targetNBT).getInt();
-				try {
-					this.target = descriptors.get(descriptor);
-				} catch(final BadDescriptorException exp) {
-					throw new RuntimeException("Save data is corrupt: MethodCall refers to closed descriptor", exp);
-				}
-				descriptorsToClose.add(descriptor);
+				final int index = ((NBTTagInt) targetNBT).getInt();
+				target = new ValueReference(valuePool[index]);
 			}
 		}
 
@@ -414,6 +401,15 @@ public final class MethodCall implements AutoCloseable {
 				this.method = Arrays.stream(SpecialMethod.values()).filter(i -> i.ordinal() == ordinal).findAny().get();
 			}
 		}
+
+		// When save() persisted the MethodCall, if it encountered any opaque
+		// values, it allocated new descriptors for them and represented them
+		// in the NBT (either directly, in the case of target, or inside CBOR,
+		// in the case of parameters) via those descriptors. Those descriptors
+		// were not intentionally created by the Wasm module instance; rather,
+		// they only exist because save() created them. We should therefore
+		// keep track of them as we load, and close them at the end.
+		final ArrayList<Integer> descriptorsToClose = new ArrayList<Integer>();
 
 		// Load the parameters.
 		{
@@ -570,23 +566,19 @@ public final class MethodCall implements AutoCloseable {
 	/**
 	 * Saves the {@code MethodCall} into an NBT structure.
 	 *
-	 * @param descriptorTable The descriptor table to use to save opaque
-	 * values.
+	 * @param valuePool The value pool to use to save opaque values.
+	 * @param descriptorTable The descriptor table to use to save opaque values
+	 * that need descriptors.
 	 * @param descriptorListener A listener which is invoked and passed every
 	 * descriptor created during saving.
 	 * @return The created NBT compound.
 	 */
-	public NBTTagCompound save(final DescriptorTable descriptorTable, final IntConsumer descriptorListener) {
+	public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) {
 		final NBTTagCompound root = new NBTTagCompound();
 		if(target instanceof String) {
 			root.setString(NBT_TARGET, (String) target);
 		} else {
-			try(DescriptorTable.Allocator alloc = descriptorTable.new Allocator()) {
-				final int descriptor = alloc.add(((ValueReference) target).get());
-				alloc.commit();
-				descriptorListener.accept(descriptor);
-				root.setInteger(NBT_TARGET, descriptor);
-			}
+			root.setInteger(NBT_TARGET, valuePool.store(((ValueReference) target).get()));
 		}
 		if(method instanceof String) {
 			root.setString(NBT_METHOD, (String) method);

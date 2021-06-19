@@ -111,7 +111,7 @@ public final class Syscalls {
 		Objects.requireNonNull(memory);
 		final ReferencedValue[] valuePool = ValuePool.load(machine, root.getTagList(NBT_VALUES, NBT.TAG_COMPOUND));
 		descriptors = new DescriptorTable(machine, valuePool, root.getCompoundTag(NBT_DESCRIPTORS));
-		component = new Component(machine, memory, descriptors, root.getCompoundTag(NBT_COMPONENT));
+		component = new Component(machine, memory, valuePool, descriptors, root.getCompoundTag(NBT_COMPONENT));
 		computer = new Computer(machine, cpu, memory, descriptors, root.getCompoundTag(NBT_COMPUTER));
 		descriptor = new Descriptor(descriptors, component);
 		execute = new Execute(cpu, memory, snapshot.executeBuffer);
@@ -136,7 +136,7 @@ public final class Syscalls {
 		final ArrayList<Integer> addedDescriptors = new ArrayList<Integer>();
 
 		// Save the syscall modules that use NBT first.
-		root.setTag(NBT_COMPONENT, component.save(addedDescriptors::add));
+		root.setTag(NBT_COMPONENT, component.save(valuePool, addedDescriptors::add));
 		root.setTag(NBT_COMPUTER, computer.save());
 
 		// Save the descriptor table last, now that the modules have had a
