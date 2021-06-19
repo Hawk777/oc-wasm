@@ -286,7 +286,13 @@ public final class Computer {
 			if(poppedSignal == null) {
 				final Signal signal = machine.popSignal();
 				if(signal != null) {
-					poppedSignal = new CachingSupplier<byte[]>(() -> CBOR.toCBORSequence(Stream.concat(Stream.of(signal.name()), Arrays.stream(signal.args())), descriptors));
+					poppedSignal = new CachingSupplier<byte[]>(() -> {
+						try(DescriptorTable.Allocator alloc = descriptors.new Allocator()) {
+							final byte[] cbor = CBOR.toCBORSequence(Stream.concat(Stream.of(signal.name()), Arrays.stream(signal.args())), alloc);
+							alloc.commit();
+							return cbor;
+						}
+					});
 				}
 			}
 			if(poppedSignal == null) {

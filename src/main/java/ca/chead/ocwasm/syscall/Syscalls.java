@@ -1,13 +1,11 @@
 package ca.chead.ocwasm.syscall;
 
-import ca.chead.ocwasm.BadDescriptorException;
 import ca.chead.ocwasm.CPU;
 import ca.chead.ocwasm.DescriptorTable;
 import ca.chead.ocwasm.ReferencedValue;
 import ca.chead.ocwasm.Snapshot;
 import ca.chead.ocwasm.ValuePool;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -130,38 +128,25 @@ public final class Syscalls {
 		// other parts of the system, but each value will appear only once.
 		final ValuePool valuePool = new ValuePool();
 
-		// Some of the syscall modules might allocate descriptors in order to
-		// persist references to opaque values that were held in their internal
-		// state. Keep track of all such allocated descriptors.
-		final ArrayList<Integer> addedDescriptors = new ArrayList<Integer>();
+		// Some of the syscall modules might allocate temporary descriptors in
+		// order to persist references to opaque values that were held in their
+		// internal state. We don’t want those descriptors to outlive the
+		// save() invocation, so allocate them using a dedicated allocator
+		// which we intentionally do *not* commit.
+		try(DescriptorTable.Allocator descriptorAlloc = descriptors.new Allocator()) {
+			// Save the syscall modules that use NBT first.
+			root.setTag(NBT_COMPONENT, component.save(valuePool, descriptorAlloc));
+			root.setTag(NBT_COMPUTER, computer.save());
 
-		// Save the syscall modules that use NBT first.
-		root.setTag(NBT_COMPONENT, component.save(valuePool, addedDescriptors::add));
-		root.setTag(NBT_COMPUTER, computer.save());
+			// Save the descriptor table last, now that the modules have had a
+			// chance to add any temporary descriptors they need to preserve
+			// their internal state.
+			root.setTag(NBT_DESCRIPTORS, descriptors.save(valuePool));
 
-		// Save the descriptor table last, now that the modules have had a
-		// chance to add any extra descriptors they need to preserve their
-		// internal state.
-		root.setTag(NBT_DESCRIPTORS, descriptors.save(valuePool));
-
-		// If the modules allocated descriptors as part of saving, we want
-		// those descriptors to appear in the NBT image of the descriptor
-		// table, but we don’t want them to stay in the descriptor table going
-		// forward because the Wasm module instance doesn’t know about them and
-		// won’t close them. We should close them now.
-		addedDescriptors.forEach(i -> {
-			try {
-				descriptors.close(i);
-			} catch(final BadDescriptorException exp) {
-				// This should be impossible if we just created the descriptor
-				// during saving!
-				throw new RuntimeException(exp);
-			}
-		});
-
-		// Save the value pool, now that everyone has had a chance to put
-		// values in it.
-		root.setTag(NBT_VALUES, valuePool.save());
+			// Save the value pool, now that everyone has had a chance to put
+			// values in it.
+			root.setTag(NBT_VALUES, valuePool.save());
+		}
 
 		// Also save the state of the execute module, which only needs to
 		// return a large byte array.

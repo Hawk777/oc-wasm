@@ -8,7 +8,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import li.cil.oc.api.machine.Callback;
 import li.cil.oc.api.machine.LimitReachedException;
@@ -445,15 +444,13 @@ public abstract class MethodCall implements AutoCloseable {
 	 * Saves the {@code MethodCall} into an NBT structure.
 	 *
 	 * @param valuePool The value pool to use to save opaque values.
-	 * @param descriptorTable The descriptor table to use to save opaque values
-	 * that need descriptors.
-	 * @param descriptorListener A listener which is invoked and passed every
-	 * descriptor created during saving.
+	 * @param descriptorAlloc The descriptor allocator to use to save opaque
+	 * values that need descriptors.
 	 * @return The created NBT compound.
 	 */
-	public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) {
+	public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable.Allocator descriptorAlloc) {
 		final NBTTagCompound root = new NBTTagCompound();
-		root.setByteArray(NBT_PARAMETERS, CBOR.toCBORSequence(Arrays.stream(parameters), descriptorTable, descriptorListener));
+		root.setByteArray(NBT_PARAMETERS, CBOR.toCBORSequence(Arrays.stream(parameters), descriptorAlloc));
 		return root;
 	}
 
@@ -550,8 +547,8 @@ public abstract class MethodCall implements AutoCloseable {
 		}
 
 		@Override
-		public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) {
-			final NBTTagCompound root = super.save(valuePool, descriptorTable, descriptorListener);
+		public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable.Allocator descriptorAlloc) {
+			final NBTTagCompound root = super.save(valuePool, descriptorAlloc);
 			root.setString(NBT_TARGET, target);
 			root.setString(NBT_METHOD, method);
 			return root;
@@ -616,8 +613,8 @@ public abstract class MethodCall implements AutoCloseable {
 		}
 
 		@Override
-		public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) {
-			final NBTTagCompound root = super.save(valuePool, descriptorTable, descriptorListener);
+		public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable.Allocator descriptorAlloc) {
+			final NBTTagCompound root = super.save(valuePool, descriptorAlloc);
 			root.setInteger(NBT_TARGET, valuePool.store(target.get()));
 			root.setString(NBT_METHOD, method);
 			return root;
@@ -764,8 +761,8 @@ public abstract class MethodCall implements AutoCloseable {
 		}
 
 		@Override
-		public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) {
-			final NBTTagCompound root = super.save(valuePool, descriptorTable, descriptorListener);
+		public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable.Allocator descriptorAlloc) {
+			final NBTTagCompound root = super.save(valuePool, descriptorAlloc);
 			root.setInteger(NBT_TARGET, valuePool.store(target.get()));
 			root.setInteger(NBT_METHOD, method.ordinal());
 			return root;

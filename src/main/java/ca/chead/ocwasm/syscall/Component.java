@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import li.cil.oc.api.machine.Callback;
 import li.cil.oc.api.machine.Machine;
@@ -960,19 +959,24 @@ public final class Component {
 	 */
 	private CallResult wrapCallResult(final Object[] result) {
 		Objects.requireNonNull(result);
-		return new CallResult(new CachingSupplier<byte[]>(
-			() -> CBOR.toCBORSequence(Arrays.stream(result), descriptors)));
+		return new CallResult(new CachingSupplier<byte[]>(() -> {
+			try(DescriptorTable.Allocator alloc = descriptors.new Allocator()) {
+				final byte[] cbor = CBOR.toCBORSequence(Arrays.stream(result), alloc);
+				alloc.commit();
+				return cbor;
+			}
+		}));
 	}
 
 	/**
 	 * Saves the {@code Component} into an NBT structure.
 	 *
 	 * @param valuePool The value pool to use to save opaque values.
-	 * @param descriptorListener A listener which is invoked and passed every
-	 * descriptor created during saving.
+	 * @param descriptorAlloc A descriptor allocator in which to allocate
+	 * descriptors for any opaque values encountered.
 	 * @return The created NBT tag.
 	 */
-	public NBTTagCompound save(final ValuePool valuePool, final IntConsumer descriptorListener) {
+	public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable.Allocator descriptorAlloc) {
 		final NBTTagCompound root = new NBTTagCompound();
 		if(list != null) {
 			final NBTTagList listNBT = new NBTTagList();
@@ -990,7 +994,7 @@ public final class Component {
 		// Don’t save methodsIndex; it is implicitly saved by skipping that
 		// many leading elements of methods in the previous block.
 		if(pendingCall != null) {
-			root.setTag(NBT_PENDING_CALL, pendingCall.save(valuePool, descriptors, descriptorListener));
+			root.setTag(NBT_PENDING_CALL, pendingCall.save(valuePool, descriptorAlloc));
 		}
 		if(callResult != null) {
 			root.setTag(NBT_CALL_RESULT, callResult.save());

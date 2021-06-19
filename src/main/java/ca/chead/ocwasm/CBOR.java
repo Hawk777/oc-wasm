@@ -40,29 +40,14 @@ public final class CBOR {
 	 *
 	 * @param objects The objects to convert, each of which must be one of the
 	 * understood types.
-	 * @param descriptors A descriptor table in which to allocate descriptors
-	 * for any opaque values encountered.
+	 * @param descriptorAllocator A descriptor allocator in which to allocate
+	 * descriptors for any opaque values encountered.
 	 * @return The CBOR encoding.
 	 */
-	public static byte[] toCBORSequence(final Stream<Object> objects, final DescriptorTable descriptors) {
-		return toCBORSequence(objects, descriptors, descriptor -> { });
-	}
-
-	/**
-	 * Converts a sequence of Java objects into a sequence of CBOR data items.
-	 *
-	 * @param objects The objects to convert, each of which must be one of the
-	 * understood types.
-	 * @param descriptors A descriptor table in which to allocate descriptors
-	 * for any opaque values encountered.
-	 * @param descriptorListener A listener which is invoked and passed every
-	 * descriptor created during conversion.
-	 * @return The CBOR encoding.
-	 */
-	public static byte[] toCBORSequence(final Stream<Object> objects, final DescriptorTable descriptors, final IntConsumer descriptorListener) {
+	public static byte[] toCBORSequence(final Stream<Object> objects, final DescriptorTable.Allocator descriptorAllocator) {
 		try {
 			final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			toCBORSequence(baos, objects, descriptors, descriptorListener);
+			toCBORSequence(baos, objects, descriptorAllocator);
 			return baos.toByteArray();
 		} catch(final IOException exp) {
 			throw new RuntimeException("Impossible I/O error occurred", exp);
@@ -77,40 +62,34 @@ public final class CBOR {
 	 *
 	 * @param target The stream to write to.
 	 * @param objects The objects to write.
-	 * @param descriptors A descriptor table in which to allocate descriptors
-	 * for any opaque values encountered.
-	 * @param descriptorListener A listener which is invoked and passed every
-	 * descriptor created during conversion.
+	 * @param descriptorAllocator A descriptor allocator in which to allocate
+	 * descriptors for any opaque values encountered.
 	 * @throws IOException If a write to {@code target} fails.
 	 */
-	private static void toCBORSequence(final OutputStream target, final Stream<Object> objects, final DescriptorTable descriptors, final IntConsumer descriptorListener) throws IOException {
+	private static void toCBORSequence(final OutputStream target, final Stream<Object> objects, final DescriptorTable.Allocator descriptorAllocator) throws IOException {
 		Objects.requireNonNull(target);
 		Objects.requireNonNull(objects);
-		Objects.requireNonNull(descriptors);
-		Objects.requireNonNull(descriptorListener);
+		Objects.requireNonNull(descriptorAllocator);
 
-		try(DescriptorTable.Allocator descriptorAlloc = descriptors.new Allocator()) {
-			final CborEncoder enc = new CborEncoder(target);
-			final CborException[] exps = new CborException[]{null};
-			objects.forEachOrdered(i -> {
-				try {
-					enc.encode(toDataItem(i, descriptorAlloc, descriptorListener));
-				} catch(final CborException e) {
-					if(exps[0] == null) {
-						exps[0] = e;
-					}
-				}
-			});
-			final CborException exp = exps[0];
-			if(exp != null) {
-				final Throwable cause = exp.getCause();
-				if(cause instanceof IOException) {
-					throw (IOException) cause;
-				} else {
-					throw new RuntimeException("CBOR encoding error (this is an OC-Wasm bug)", exp);
+		final CborEncoder enc = new CborEncoder(target);
+		final CborException[] exps = new CborException[]{null};
+		objects.forEachOrdered(i -> {
+			try {
+				enc.encode(toDataItem(i, descriptorAllocator));
+			} catch(final CborException e) {
+				if(exps[0] == null) {
+					exps[0] = e;
 				}
 			}
-			descriptorAlloc.commit();
+		});
+		final CborException exp = exps[0];
+		if(exp != null) {
+			final Throwable cause = exp.getCause();
+			if(cause instanceof IOException) {
+				throw (IOException) cause;
+			} else {
+				throw new RuntimeException("CBOR encoding error (this is an OC-Wasm bug)", exp);
+			}
 		}
 	}
 
@@ -120,11 +99,9 @@ public final class CBOR {
 	 * @param object The object to convert.
 	 * @param descriptorAlloc A descriptor table allocator to use to allocate
 	 * descriptors for any opaque values encountered.
-	 * @param descriptorListener A listener which is invoked and passed every
-	 * descriptor created during conversion.
 	 * @return The CBOR data item.
 	 */
-	private static DataItem toDataItem(final Object object, final DescriptorTable.Allocator descriptorAlloc, final IntConsumer descriptorListener) {
+	private static DataItem toDataItem(final Object object, final DescriptorTable.Allocator descriptorAlloc) {
 		if(object == null) {
 			return SimpleValue.NULL;
 		} else if(object instanceof Boolean) {
@@ -134,7 +111,6 @@ public final class CBOR {
 			return (value >= 0) ? new UnsignedInteger(value) : new NegativeInteger(value);
 		} else if(object instanceof Value) {
 			final int descriptor = descriptorAlloc.add((Value) object);
-			descriptorListener.accept(descriptor);
 			final DataItem ret = new UnsignedInteger(descriptor);
 			ret.setTag(new Tag(IDENTIFIER_TAG));
 			return ret;
@@ -146,19 +122,19 @@ public final class CBOR {
 			final int length = java.lang.reflect.Array.getLength(object);
 			final Array ret = new Array();
 			for(int i = 0; i != length; ++i) {
-				ret.add(toDataItem(java.lang.reflect.Array.get(object, i), descriptorAlloc, descriptorListener));
+				ret.add(toDataItem(java.lang.reflect.Array.get(object, i), descriptorAlloc));
 			}
 			return ret;
 		} else if(object instanceof Iterable) {
 			final Array ret = new Array();
 			for(final Object i : ((Iterable) object)) {
-				ret.add(toDataItem(i, descriptorAlloc, descriptorListener));
+				ret.add(toDataItem(i, descriptorAlloc));
 			}
 			return ret;
 		} else if(object instanceof java.util.Map) {
 			final Map ret = new Map();
 			for(final java.util.Map.Entry<?, ?> i : ((java.util.Map<?, ?>) object).entrySet()) {
-				ret.put(toDataItem(i.getKey(), descriptorAlloc, descriptorListener), toDataItem(i.getValue(), descriptorAlloc, descriptorListener));
+				ret.put(toDataItem(i.getKey(), descriptorAlloc), toDataItem(i.getValue(), descriptorAlloc));
 			}
 			return ret;
 		} else {
