@@ -1026,23 +1026,6 @@ public final class Component {
 	}
 
 	/**
-	 * Wraps the result of a method call in a {@link CallResult}.
-	 *
-	 * @param result The call result.
-	 * @return The wrapped object.
-	 */
-	private CallResult wrapCallResult(final Object[] result) {
-		Objects.requireNonNull(result);
-		return new CallResult(new CachingSupplier<byte[]>(() -> {
-			try(DescriptorTable.Allocator alloc = descriptors.new Allocator()) {
-				final byte[] cbor = CBOR.toCBORSequence(Arrays.stream(result), alloc);
-				alloc.commit();
-				return cbor;
-			}
-		}));
-	}
-
-	/**
 	 * Saves the {@code Component} into an NBT structure.
 	 *
 	 * @param valuePool The value pool to use to save opaque values.
