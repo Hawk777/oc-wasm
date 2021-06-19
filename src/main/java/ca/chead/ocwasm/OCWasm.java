@@ -162,10 +162,19 @@ public final class OCWasm {
 	 *
 	 * @param values The values to convert.
 	 * @return The converted values.
-	 * @throws Throwable If the conversion routine fails.
 	 */
-	public static Object[] convertValues(final Object[] values) throws Throwable {
-		return (Object[]) registryConvertHandle.invoke(values);
+	public static Object[] convertValues(final Object[] values) {
+		try {
+			return (Object[]) registryConvertHandle.invoke(values);
+		} catch(final RuntimeException exp) {
+			throw exp;
+		} catch(final Error exp) {
+			throw exp;
+		} catch(final Throwable exp) {
+			// The convert method is not declared as throwing any checked
+			// exceptions.
+			throw new RuntimeException("Impossible exception", exp);
+		}
 	}
 
 	/**
