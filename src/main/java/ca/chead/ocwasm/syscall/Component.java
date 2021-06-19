@@ -1,7 +1,6 @@
 package ca.chead.ocwasm.syscall;
 
 import ca.chead.ocwasm.CBOR;
-import ca.chead.ocwasm.CachingSupplier;
 import ca.chead.ocwasm.CallResult;
 import ca.chead.ocwasm.ComponentUtils;
 import ca.chead.ocwasm.DescriptorTable;
@@ -801,7 +800,7 @@ public final class Component {
 			}
 
 			// Copy the CBOR bytes to the buffer.
-			final byte[] bytes = callResult.result.get();
+			final byte[] bytes = encodeCallResult();
 			MemoryUtils.writeOptionalBytes(memory, buffer, length, bytes);
 			if(buffer != 0) {
 				callResult = null;
@@ -860,19 +859,35 @@ public final class Component {
 			// in the results. We don’t want that. Instead, keep pendingCall
 			// around for now, until the computer thread CBOR-encodes the
 			// result (and thereby allocates descriptors for opaque values).
-			//
-			// As soon as the call result is CBOR-encoded, however, the pending
-			// call can be disposed as it has no further use. Arrange for the
-			// supplier to do that automatically.
-			callResult = new CallResult(new CachingSupplier<byte[]>(() -> {
-				try(DescriptorTable.Allocator alloc = descriptors.new Allocator()) {
-					final byte[] cbor = CBOR.toCBORSequence(Arrays.stream(result), alloc);
-					alloc.commit();
-					pendingCall.close();
-					pendingCall = null;
-					return cbor;
-				}
-			}));
+			callResult = new CallResult(result);
+		}
+	}
+
+	/**
+	 * Returns the CBOR encoding of {@link #callResult}.
+	 *
+	 * @return The CBOR encoding, or {@code null} if {@link #callResult} is
+	 * {@code null} or contains an error code instead of a call result.
+	 */
+	private byte[] encodeCallResult() {
+		if(callResult != null) {
+			// Encode the call result.
+			final byte[] cbor;
+			try(DescriptorTable.Allocator alloc = descriptors.new Allocator()) {
+				cbor = callResult.encode(alloc);
+				alloc.commit();
+			}
+
+			// Once we are certain callResult has been encoded and is in CBOR
+			// form, it is then safe to drop methodCall.
+			if(pendingCall != null) {
+				pendingCall.close();
+				pendingCall = null;
+			}
+
+			return cbor;
+		} else {
+			return null;
 		}
 	}
 
@@ -905,9 +920,7 @@ public final class Component {
 		// server-thread time on CBOR encoding; however, we also know that user
 		// code cannot be running at the same time, so we can just force
 		// callResult to be CBOR-encoded right before starting the user code.
-		if(callResult != null && callResult.result != null) {
-			callResult.result.get();
-		}
+		encodeCallResult();
 	}
 
 	/**
@@ -1006,7 +1019,7 @@ public final class Component {
 				cbor = CBOR.toCBORSequence(Arrays.stream(result), alloc);
 				alloc.commit();
 			}
-			callResult = new CallResult(() -> cbor);
+			callResult = new CallResult(cbor);
 			// Dispose the completed call.
 			call.close();
 			return 1;
@@ -1078,9 +1091,7 @@ public final class Component {
 		// thing to do is simply CBOR-encode the call result. That pushes all
 		// opaque values into the descriptor table, which already knows how to
 		// dispose them properly.
-		if(callResult != null && callResult.result != null) {
-			callResult.result.get();
-		}
+		encodeCallResult();
 
 		// If we have a pending call, close it.
 		if(pendingCall != null) {
