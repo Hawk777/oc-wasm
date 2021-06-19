@@ -1,6 +1,5 @@
-package ca.chead.ocwasm.syscall;
+package ca.chead.ocwasm;
 
-import ca.chead.ocwasm.ErrorCode;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Supplier;

@@ -2,6 +2,7 @@ package ca.chead.ocwasm.syscall;
 
 import ca.chead.ocwasm.CBOR;
 import ca.chead.ocwasm.CachingSupplier;
+import ca.chead.ocwasm.CallResult;
 import ca.chead.ocwasm.ComponentUtils;
 import ca.chead.ocwasm.DescriptorTable;
 import ca.chead.ocwasm.ErrorCode;
