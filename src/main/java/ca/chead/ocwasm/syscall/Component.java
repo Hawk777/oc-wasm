@@ -816,7 +816,7 @@ public final class Component {
 	 * not.
 	 */
 	public boolean needsRunSynchronized() {
-		return pendingCall != null;
+		return pendingCall != null && callResult == null;
 	}
 
 	/**
@@ -847,14 +847,45 @@ public final class Component {
 	 * Performs an indirect call, if needed.
 	 */
 	public void runSynchronized() {
-		if(pendingCall != null) {
+		if(pendingCall != null && callResult == null) {
+			// Invoke the method.
+			final Object[] result;
 			try {
-				callResult = wrapCallResult(pendingCall.invokeIndirect(machine));
+				result = pendingCall.invokeIndirect(machine);
 			} catch(final SyscallErrorException exp) {
+				// The invocation failed. Save the error code.
 				callResult = new CallResult(exp.errorCode());
+				// In this case there are no results, and there is no need to
+				// keep holding onto the call.
+				pendingCall.close();
+				pendingCall = null;
+				return;
 			}
-			pendingCall.close();
-			pendingCall = null;
+			// The invocation succeeded. Save the result. Do not CBOR-encode it
+			// right now, as that would take precious server-thread time;
+			// instead, leave it in object-graph form and let the computer
+			// thread CBOR-encode it later. *HOWEVER*, consider that it is
+			// possible that the method call contained an opaque value
+			// parameter, and that was the only refcounted reference to that
+			// opaque value. Now consider that the method call could possibly
+			// have returned that value in its result. If we close the call, we
+			// will dispose that value, even though we are going to return it
+			// in the results. We don’t want that. Instead, keep pendingCall
+			// around for now, until the computer thread CBOR-encodes the
+			// result (and thereby allocates descriptors for opaque values).
+			//
+			// As soon as the call result is CBOR-encoded, however, the pending
+			// call can be disposed as it has no further use. Arrange for the
+			// supplier to do that automatically.
+			callResult = new CallResult(new CachingSupplier<byte[]>(() -> {
+				try(DescriptorTable.Allocator alloc = descriptors.new Allocator()) {
+					final byte[] cbor = CBOR.toCBORSequence(Arrays.stream(result), alloc);
+					alloc.commit();
+					pendingCall.close();
+					pendingCall = null;
+					return cbor;
+				}
+			}));
 		}
 	}
 
@@ -938,15 +969,37 @@ public final class Component {
 
 		// Try to invoke it directly, otherwise pend it.
 		try {
-			callResult = wrapCallResult(call.invokeDirect(machine));
+			final Object[] result = call.invokeDirect(machine);
+			// The call completed. If we left the result in object-graph form,
+			// it’s possible it might contain opaque values in the form of
+			// Value objects. If one of those Value objects was the same object
+			// that was passed as a parameter, the caller could then close the
+			// descriptor they used in the call. If they did that, the value
+			// would be disposed, because they just closed the only
+			// reference-counted reference to it. That would be bad, because
+			// the value is actually in the method return. To avoid that,
+			// CBOR-encode the result immediately, thus pushing such objects
+			// into the descriptor table.
+			final byte[] cbor;
+			try(DescriptorTable.Allocator alloc = descriptors.new Allocator()) {
+				cbor = CBOR.toCBORSequence(Arrays.stream(result), alloc);
+				alloc.commit();
+			}
+			callResult = new CallResult(() -> cbor);
+			// Dispose the completed call.
+			call.close();
 			return 1;
 		} catch(final InProgressException exp) {
+			// The call can’t be made now; it must be made indirectly. Hold
+			// onto the call and don’t dispose it.
 			pendingCall = call;
 			return 0;
 		} catch(final SyscallErrorException exp) {
 			// Exceptions on *the call itself*, as opposed to on gathering the
 			// parameters, should be reported via invokeEnd instead.
 			callResult = new CallResult(exp.errorCode());
+			// Dispose the failed call.
+			call.close();
 			return 1;
 		}
 	}
@@ -993,11 +1046,17 @@ public final class Component {
 		}
 		// Don’t save methodsIndex; it is implicitly saved by skipping that
 		// many leading elements of methods in the previous block.
-		if(pendingCall != null) {
-			root.setTag(NBT_PENDING_CALL, pendingCall.save(valuePool, descriptorAlloc));
-		}
+
+		// Save callResult before saving pendingCall. This is not strictly
+		// necessary but it is an optimization: the Supplier<byte[]> in
+		// callResult may destroy pendingCall (see runSynchronized for why). If
+		// that happens, saving callResult first means we don’t have to save
+		// pendingCall at all.
 		if(callResult != null) {
 			root.setTag(NBT_CALL_RESULT, callResult.save());
+		}
+		if(pendingCall != null) {
+			root.setTag(NBT_PENDING_CALL, pendingCall.save(valuePool, descriptorAlloc));
 		}
 		return root;
 	}
