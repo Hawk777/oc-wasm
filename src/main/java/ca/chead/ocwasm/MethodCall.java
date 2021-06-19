@@ -3,10 +3,13 @@ package ca.chead.ocwasm;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.IntConsumer;
+import java.util.stream.Collectors;
 import li.cil.oc.api.machine.Callback;
 import li.cil.oc.api.machine.LimitReachedException;
 import li.cil.oc.api.machine.Machine;
@@ -242,6 +245,11 @@ public abstract class MethodCall implements AutoCloseable {
 	public final Object[] parameters;
 
 	/**
+	 * The opaque values referenced by this method call.
+	 */
+	private final List<ValueReference> values;
+
+	/**
 	 * Loads a {@code MethodCall} that was previously saved.
 	 *
 	 * @param root The compound that was previously returned from {@link
@@ -276,10 +284,12 @@ public abstract class MethodCall implements AutoCloseable {
 	 * Constructs a new {@code MethodCall}.
 	 *
 	 * @param parameters The parameters to pass to the method.
+	 * @param values The opaque values referenced by this method call.
 	 */
-	protected MethodCall(final Object[] parameters) {
+	protected MethodCall(final Object[] parameters, final List<ValueReference> values) {
 		super();
 		this.parameters = Objects.requireNonNull(parameters);
+		this.values = Objects.requireNonNull(values);
 	}
 
 	/**
@@ -301,13 +311,13 @@ public abstract class MethodCall implements AutoCloseable {
 		// were not intentionally created by the Wasm module instance; rather,
 		// they only exist because save() created them. We should therefore
 		// keep track of them as we load, and close them at the end.
-		final ArrayList<Integer> descriptorsToClose = new ArrayList<Integer>();
+		final ArrayList<Integer> descriptorsInParameters = new ArrayList<Integer>();
 
 		// Load the parameters.
 		{
 			final byte[] bytes = root.getByteArray(NBT_PARAMETERS);
 			try {
-				this.parameters = CBOR.toJavaSequence(ByteBuffer.wrap(bytes), descriptors, descriptorsToClose::add);
+				parameters = CBOR.toJavaSequence(ByteBuffer.wrap(bytes), descriptors, descriptorsInParameters::add);
 			} catch(final CBORDecodeException exp) {
 				throw new RuntimeException("Save data is corrupt: MethodCall contains invalid CBOR", exp);
 			} catch(final BadDescriptorException exp) {
@@ -315,8 +325,19 @@ public abstract class MethodCall implements AutoCloseable {
 			}
 		}
 
+		// Collect all the opaque values referenced by the parameters.
+		values = Collections.unmodifiableList(descriptorsInParameters.stream().map((descriptor) -> {
+			try {
+				return descriptors.get(descriptor);
+			} catch(final BadDescriptorException exp) {
+				// This cannot throw BadDescriptorException because, if it did,
+				// CBOR.toJavaSequence would have failed.
+				throw new RuntimeException("Impossible exception", exp);
+			}
+		}).collect(Collectors.toList()));
+
 		// Close all the descriptors that were referred to during loading of this object.
-		descriptorsToClose.stream().forEach(descriptor -> {
+		descriptorsInParameters.stream().forEach(descriptor -> {
 			try {
 				descriptors.close(descriptor);
 			} catch(final BadDescriptorException exp) {
@@ -436,8 +457,15 @@ public abstract class MethodCall implements AutoCloseable {
 		return root;
 	}
 
+	/**
+	 * Disposes of all resources in the object.
+	 *
+	 * Subclasses must call this method and then dispose of any resources held
+	 * within themselves.
+	 */
 	@Override
 	public void close() {
+		values.forEach(ValueReference::close);
 	}
 
 	/**
@@ -484,9 +512,10 @@ public abstract class MethodCall implements AutoCloseable {
 		 * @param address The UUID of the component.
 		 * @param method The name of the method.
 		 * @param parameters The parameters to pass to the method.
+		 * @param values The opaque values referenced by {@code parameters}.
 		 */
-		public Component(final String address, final String method, final Object[] parameters) {
-			super(parameters);
+		public Component(final String address, final String method, final Object[] parameters, final List<ValueReference> values) {
+			super(parameters, values);
 			target = Objects.requireNonNull(address);
 			this.method = Objects.requireNonNull(method);
 		}
@@ -549,9 +578,10 @@ public abstract class MethodCall implements AutoCloseable {
 		 * @param value The opaque value, which is cloned.
 		 * @param method The name of the method.
 		 * @param parameters The parameters to pass to the method.
+		 * @param values The opaque values referenced by {@code parameters}.
 		 */
-		public ValueRegular(final ValueReference value, final String method, final Object[] parameters) {
-			super(parameters);
+		public ValueRegular(final ValueReference value, final String method, final Object[] parameters, final List<ValueReference> values) {
+			super(parameters, values);
 			target = value.clone();
 			this.method = Objects.requireNonNull(method);
 		}
@@ -688,9 +718,10 @@ public abstract class MethodCall implements AutoCloseable {
 		 * @param value The opaque value, which is cloned.
 		 * @param method The method.
 		 * @param parameters The parameters to pass to the method.
+		 * @param values The opaque values referenced by {@code parameters}.
 		 */
-		public ValueSpecial(final ValueReference value, final Method method, final Object[] parameters) {
-			super(parameters);
+		public ValueSpecial(final ValueReference value, final Method method, final Object[] parameters, final List<ValueReference> values) {
+			super(parameters, values);
 			target = value.clone();
 			this.method = Objects.requireNonNull(method);
 		}

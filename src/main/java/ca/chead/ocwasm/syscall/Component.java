@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -623,8 +624,16 @@ public final class Component {
 			final String address = WasmString.toJava(memory, addressPointer, addressLength);
 			final String method = WasmString.toJava(memory, methodPointer, methodLength);
 			final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer, paramsLength);
-			final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors);
-			return new MethodCall.Component(address, method, params);
+			final ArrayList<Integer> paramDescriptors = new ArrayList<Integer>();
+			final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors, paramDescriptors::add);
+			final ArrayList<ValueReference> paramValues = new ArrayList<ValueReference>(paramDescriptors.size());
+			for(final int paramDescriptor : paramDescriptors) {
+				// This cannot throw BadDescriptorException because, if it did,
+				// CBOR.toJavaSequence would have failed; therefore, we do not
+				// have to worry about cleaning up a half-done job.
+				paramValues.add(descriptors.get(paramDescriptor));
+			}
+			return new MethodCall.Component(address, method, params, Collections.unmodifiableList(paramValues));
 		}));
 	}
 
@@ -721,8 +730,17 @@ public final class Component {
 			try(ValueReference target = descriptors.get(descriptor)) {
 				final String method = WasmString.toJava(memory, methodPointer, methodLength);
 				final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer, paramsLength);
-				final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors);
-				return new MethodCall.ValueRegular(target, method, params);
+				final ArrayList<Integer> paramDescriptors = new ArrayList<Integer>();
+				final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors, paramDescriptors::add);
+				final ArrayList<ValueReference> paramValues = new ArrayList<ValueReference>(paramDescriptors.size());
+				for(final int paramDescriptor : paramDescriptors) {
+					// This cannot throw BadDescriptorException because, if it
+					// did, CBOR.toJavaSequence would have failed; therefore,
+					// we do not have to worry about cleaning up a half-done
+					// job.
+					paramValues.add(descriptors.get(paramDescriptor));
+				}
+				return new MethodCall.ValueRegular(target, method, params, Collections.unmodifiableList(paramValues));
 			}
 		}));
 	}
@@ -878,8 +896,17 @@ public final class Component {
 		return invokeCommon(() -> {
 			try(ValueReference target = descriptors.get(descriptor)) {
 				final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer, paramsLength);
-				final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors);
-				return new MethodCall.ValueSpecial(target, method, params);
+				final ArrayList<Integer> paramDescriptors = new ArrayList<Integer>();
+				final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors, paramDescriptors::add);
+				final ArrayList<ValueReference> paramValues = new ArrayList<ValueReference>(paramDescriptors.size());
+				for(final int paramDescriptor : paramDescriptors) {
+					// This cannot throw BadDescriptorException because, if it
+					// did, CBOR.toJavaSequence would have failed; therefore,
+					// we do not have to worry about cleaning up a half-done
+					// job.
+					paramValues.add(descriptors.get(paramDescriptor));
+				}
+				return new MethodCall.ValueSpecial(target, method, params, Collections.unmodifiableList(paramValues));
 			}
 		});
 	}
