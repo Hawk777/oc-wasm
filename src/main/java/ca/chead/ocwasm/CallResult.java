@@ -1,20 +1,56 @@
 package ca.chead.ocwasm;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
-import net.minecraft.nbt.NBTBase;
-import net.minecraft.nbt.NBTTagByteArray;
-import net.minecraft.nbt.NBTTagInt;
+import java.util.stream.Collectors;
+import net.minecraft.nbt.NBTTagCompound;
 
 /**
  * The result of a method call.
  */
 public final class CallResult {
 	/**
+	 * The name of the NBT tag that holds the {@link #result} field.
+	 *
+	 * This tag is a byte array. It holds the CBOR-encoded form of the result.
+	 * If the result is an error, the tag is absent.
+	 */
+	private static final String NBT_RESULT = "result";
+
+	/**
+	 * The name of the NBT tag that holds the {@link #descriptorsCreated}
+	 * field.
+	 *
+	 * This tag is an integer array. If the result is an error or there are no
+	 * descriptors, the tag may be absent.
+	 */
+	private static final String NBT_DESCRIPTORS_CREATED = "descriptorsCreated";
+
+	/**
+	 * The name of the NBT tag that holds the {@link #errorCode} field.
+	 *
+	 * This tag is an integer holding the ordinal. If the result is successful,
+	 * the tag is absent.
+	 */
+	private static final String NBT_ERROR_CODE = "errorCode";
+
+	/**
 	 * The successful result, as either an array of {@code Object} or a
 	 * CBOR-encoded array of {@code byte}; or {@code null} if the call failed.
 	 */
 	private Object result;
+
+	/**
+	 * The descriptors that have been added to the descriptor table as a result
+	 * of CBOR-encoding this call result.
+	 *
+	 * If the call result is an error or has not been encoded yet, this list is
+	 * empty.
+	 */
+	private final List<Integer> descriptorsCreated;
 
 	/**
 	 * The error code, or {@code null} if the call succeeded.
@@ -29,6 +65,7 @@ public final class CallResult {
 	public CallResult(final Object[] result) {
 		super();
 		this.result = Objects.requireNonNull(result);
+		descriptorsCreated = new ArrayList<Integer>();
 		errorCode = null;
 	}
 
@@ -40,6 +77,7 @@ public final class CallResult {
 	public CallResult(final ErrorCode errorCode) {
 		super();
 		result = null;
+		descriptorsCreated = Collections.emptyList();
 		this.errorCode = Objects.requireNonNull(errorCode);
 	}
 
@@ -48,15 +86,19 @@ public final class CallResult {
 	 *
 	 * @param root The tag that was previously returned from {@link #save}.
 	 */
-	public CallResult(final NBTBase root) {
+	public CallResult(final NBTTagCompound root) {
 		super();
-		if(root instanceof NBTTagByteArray) {
-			result = ((NBTTagByteArray) root).getByteArray();
-			errorCode = null;
+		result = root.hasKey(NBT_RESULT) ? root.getByteArray(NBT_RESULT) : null;
+		if(root.hasKey(NBT_DESCRIPTORS_CREATED)) {
+			descriptorsCreated = Collections.unmodifiableList(Arrays.stream(root.getIntArray(NBT_DESCRIPTORS_CREATED)).boxed().collect(Collectors.toList()));
 		} else {
-			result = null;
-			final int ordinal = ((NBTTagInt) root).getInt();
+			descriptorsCreated = null;
+		}
+		if(root.hasKey(NBT_ERROR_CODE)) {
+			final int ordinal = root.getInteger(NBT_ERROR_CODE);
 			errorCode = Arrays.stream(ErrorCode.values()).filter(i -> i.ordinal() == ordinal).findAny().get();
+		} else {
+			errorCode = null;
 		}
 	}
 
@@ -75,9 +117,13 @@ public final class CallResult {
 		if(result instanceof byte[]) {
 			return (byte[]) result;
 		} else if(result instanceof Object[]) {
-			final byte[] cbor = CBOR.toCBORSequence(Arrays.stream((Object[]) result), descriptorAllocator);
-			result = cbor;
-			return cbor;
+			try(DescriptorTable.Allocator childAllocator = descriptorAllocator.createChild()) {
+				final byte[] cbor = CBOR.toCBORSequence(Arrays.stream((Object[]) result), childAllocator);
+				result = cbor;
+				descriptorsCreated.addAll(childAllocator.getAllocatedDescriptors());
+				childAllocator.commit();
+				return cbor;
+			}
 		} else {
 			return null;
 		}
@@ -90,15 +136,21 @@ public final class CallResult {
 	 *
 	 * @return The created NBT tag.
 	 */
-	public NBTBase save() {
+	public NBTTagCompound save() {
+		final NBTTagCompound root = new NBTTagCompound();
 		if(result != null) {
 			if(result instanceof byte[]) {
-				return new NBTTagByteArray((byte[]) result);
+				root.setByteArray(NBT_RESULT, (byte[]) result);
 			} else {
 				throw new IllegalStateException("Unencoded CallResult objects cannot be saved");
 			}
-		} else {
-			return new NBTTagInt(errorCode.ordinal());
 		}
+		if(!descriptorsCreated.isEmpty()) {
+			root.setIntArray(NBT_DESCRIPTORS_CREATED, descriptorsCreated.stream().mapToInt(i -> i).toArray());
+		}
+		if(errorCode != null) {
+			root.setInteger(NBT_ERROR_CODE, errorCode.ordinal());
+		}
+		return root;
 	}
 }

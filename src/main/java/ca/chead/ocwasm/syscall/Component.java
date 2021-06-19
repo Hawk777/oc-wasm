@@ -312,7 +312,7 @@ public final class Component {
 
 		// Load callResult.
 		if(root.hasKey(NBT_CALL_RESULT)) {
-			callResult = new CallResult(root.getTag(NBT_CALL_RESULT));
+			callResult = new CallResult(root.getCompoundTag(NBT_CALL_RESULT));
 		} else {
 			callResult = null;
 		}
