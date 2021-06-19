@@ -25,6 +25,11 @@ public final class DescriptorTable {
 	 */
 	public final class Allocator implements AutoCloseable {
 		/**
+		 * The parent allocator, or {@code null} if there isn’t one.
+		 */
+		private final Allocator parent;
+
+		/**
 		 * The descriptors added by this allocator.
 		 */
 		private final ArrayList<Integer> allocations;
@@ -34,6 +39,25 @@ public final class DescriptorTable {
 		 */
 		public Allocator() {
 			super();
+			parent = null;
+			allocations = new ArrayList<Integer>();
+		}
+
+		/**
+		 * Constructs a new child {@code Allocator}.
+		 *
+		 * Unlike a normal allocator, a child allocator has a parent. When the
+		 * child allocator’s {@link #commit} method is called, the allocated
+		 * descriptors are pushed up into the parent allocator, which then gets
+		 * to decide whether to commit or discard the allocations. If the child
+		 * allocator is closed without being committed, the descriptors are
+		 * unconditionally discarded.
+		 *
+		 * @param parent The parent allocator.
+		 */
+		public Allocator(final Allocator parent) {
+			super();
+			this.parent = Objects.requireNonNull(parent);
 			allocations = new ArrayList<Integer>();
 		}
 
@@ -68,11 +92,26 @@ public final class DescriptorTable {
 		 *
 		 * Once this is called, closing the allocator will no longer close the
 		 * allocated descriptors; instead, they will be permanently added to
-		 * the descriptor table.
+		 * the descriptor table (or, if this allocator has a parent, added to
+		 * the parent’s provisional allocations).
 		 */
 		public void commit() {
+			// If there’s a parent, push the allocations up to the parent.
+			if(parent != null) {
+				parent.allocations.addAll(allocations);
+			}
+
 			// Forget the allocations, so that close() won’t do anything.
 			allocations.clear();
+		}
+
+		/**
+		 * Creates a child allocator.
+		 *
+		 * @return The new child allocator.
+		 */
+		public Allocator createChild() {
+			return new Allocator(this);
 		}
 
 		@Override
