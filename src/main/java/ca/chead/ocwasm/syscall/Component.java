@@ -1096,6 +1096,12 @@ public final class Component {
 		// that happens, saving callResult first means we don’t have to save
 		// pendingCall at all.
 		if(callResult != null) {
+			// callResult might not have been encoded yet. It can only be saved
+			// if it’s encoded. Encode it now.
+			try(DescriptorTable.Allocator alloc = descriptors.new Allocator()) {
+				callResult.encode(alloc);
+				alloc.commit();
+			}
 			root.setTag(NBT_CALL_RESULT, callResult.save());
 		}
 		if(pendingCall != null) {
