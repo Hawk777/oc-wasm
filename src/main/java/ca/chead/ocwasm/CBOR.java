@@ -11,6 +11,7 @@ import co.nstant.in.cbor.model.DoublePrecisionFloat;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.NegativeInteger;
 import co.nstant.in.cbor.model.SimpleValue;
+import co.nstant.in.cbor.model.SinglePrecisionFloat;
 import co.nstant.in.cbor.model.Tag;
 import co.nstant.in.cbor.model.UnicodeString;
 import co.nstant.in.cbor.model.UnsignedInteger;
@@ -109,6 +110,10 @@ public final class CBOR {
 		} else if(object instanceof Byte || object instanceof Short || object instanceof Integer || object instanceof Long) {
 			final long value = ((Number) object).longValue();
 			return (value >= 0) ? new UnsignedInteger(value) : new NegativeInteger(value);
+		} else if(object instanceof Float) {
+			return new SinglePrecisionFloat((Float) object);
+		} else if(object instanceof Double) {
+			return new DoublePrecisionFloat((Double) object);
 		} else if(object instanceof Value) {
 			final int descriptor = descriptorAlloc.add((Value) object);
 			final DataItem ret = new UnsignedInteger(descriptor);
