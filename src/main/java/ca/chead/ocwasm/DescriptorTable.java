@@ -130,6 +130,10 @@ public final class DescriptorTable {
 					// they were closing a descriptor they didn’t own (because
 					// it was the Allocator and the Allocator’s user who own
 					// the new descriptors the Allocator creates).
+					//
+					// This can’t be triggered by user code, because Allocator
+					// objects shouldn’t exist across user code execution;
+					// therefore, any occurrence of this is a bug in OC-Wasm.
 					throw new RuntimeException(exp);
 				}
 			}
