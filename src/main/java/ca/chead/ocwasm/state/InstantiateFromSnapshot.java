@@ -69,11 +69,6 @@ public final class InstantiateFromSnapshot extends State implements ModuleConstr
 		final int maxMemSize = Math.min(cpu.getInstalledRAM(), compileResult.maxLinearMemory.orElse(Integer.MAX_VALUE));
 		final ByteBuffer memory = ByteBuffer.allocate(maxMemSize);
 
-		// Initialize the memory size and load the saved data.
-		final byte[] memoryData = snapshot.memory.get();
-		memory.limit(memoryData.length);
-		memory.put(memoryData);
-
 		// Instantiate the syscalls.
 		final Syscalls syscalls = new Syscalls(machine, cpu, memory, root, snapshot);
 
@@ -85,6 +80,14 @@ public final class InstantiateFromSnapshot extends State implements ModuleConstr
 			syscalls.close();
 			return new Transition(null, ExceptionTranslator.translate(t));
 		}
+
+		// Now that the module has been instantiated, which includes setting
+		// the memory byte order and limit and loading data segments into it,
+		// replace the memory limit and contents with the values from the
+		// snapshot.
+		final byte[] memoryData = snapshot.memory.get();
+		memory.limit(memoryData.length);
+		memory.put(memoryData);
 
 		return new Transition(new Run(cpu, machine, compileResult, memory, instance, syscalls), SLEEP_ZERO);
 	}
