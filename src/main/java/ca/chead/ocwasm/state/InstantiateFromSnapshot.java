@@ -10,7 +10,6 @@ import ca.chead.ocwasm.Snapshot;
 import ca.chead.ocwasm.SnapshotOrGeneration;
 import ca.chead.ocwasm.syscall.Syscalls;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Objects;
 import java.util.Optional;
 import li.cil.oc.api.machine.Machine;
@@ -69,7 +68,6 @@ public final class InstantiateFromSnapshot extends State implements ModuleConstr
 		// Create the memory.
 		final int maxMemSize = Math.min(cpu.getInstalledRAM(), compileResult.maxLinearMemory.orElse(Integer.MAX_VALUE));
 		final ByteBuffer memory = ByteBuffer.allocate(maxMemSize);
-		memory.order(ByteOrder.LITTLE_ENDIAN);
 
 		// Initialize the memory size and load the saved data.
 		final byte[] memoryData = snapshot.memory.get();

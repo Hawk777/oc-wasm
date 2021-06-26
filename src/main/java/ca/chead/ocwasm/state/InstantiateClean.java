@@ -12,7 +12,6 @@ import ca.chead.ocwasm.Snapshot;
 import ca.chead.ocwasm.SnapshotOrGeneration;
 import ca.chead.ocwasm.syscall.Syscalls;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -75,7 +74,6 @@ public final class InstantiateClean extends State implements ModuleConstructionL
 		// Create the memory.
 		final int maxMemSize = Math.min(cpu.getInstalledRAM(), compileResult.maxLinearMemory.orElse(Integer.MAX_VALUE));
 		memory = ByteBuffer.allocate(maxMemSize);
-		memory.order(ByteOrder.LITTLE_ENDIAN).limit(compileResult.initialLinearMemory);
 
 		// Instantiate the syscall modules.
 		final Syscalls syscalls = new Syscalls(machine, cpu, memory);
