@@ -32,12 +32,6 @@ public final class Compiler {
 		public final byte[] binary;
 
 		/**
-		 * The initial size of the linear memory as specified in the Wasm
-		 * module.
-		 */
-		public final int initialLinearMemory;
-
-		/**
 		 * The maximum size of the linear memory as specified in the Wasm
 		 * module.
 		 */
@@ -72,7 +66,6 @@ public final class Compiler {
 		public Result(final byte[] binary, final Node.Module module, final Class<? extends ModuleBase> clazz, final Postprocessor.Result ppResult) {
 			super();
 			this.binary = Objects.requireNonNull(binary);
-			initialLinearMemory = module.getMemories().get(0).getLimits().getInitial();
 			final Integer declaredMax = module.getMemories().get(0).getLimits().getMaximum();
 			maxLinearMemory = declaredMax != null ? OptionalInt.of(declaredMax) : OptionalInt.empty();
 			mutableGlobalsSize = module.getGlobals().stream().filter(i -> i.getType().getMutable()).mapToInt(i -> getValueBytes(i.getType().getContentType())).sum();
