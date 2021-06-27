@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import li.cil.oc.api.machine.Callback;
 import li.cil.oc.api.machine.Machine;
@@ -205,7 +206,7 @@ public final class Component {
 	 * (optionally filtered by a requested type) created when {@link
 	 * #listStart} was called.
 	 */
-	private List<Map.Entry<String, String>> list;
+	private List<Map.Entry<UUID, String>> list;
 
 	/**
 	 * The position within {@link #list} of the next item to return.
@@ -274,9 +275,9 @@ public final class Component {
 		// Load list.
 		if(root.hasKey(NBT_LIST)) {
 			final NBTTagList listNBT = root.getTagList(NBT_LIST, NBT.TAG_STRING);
-			list = new ArrayList<Map.Entry<String, String>>(listNBT.tagCount() / 2);
+			list = new ArrayList<Map.Entry<UUID, String>>(listNBT.tagCount() / 2);
 			for(int i = 0; i < listNBT.tagCount(); i += 2) {
-				list.add(new AbstractMap.SimpleImmutableEntry<String, String>(listNBT.getStringTagAt(i), listNBT.getStringTagAt(i + 1)));
+				list.add(new AbstractMap.SimpleImmutableEntry<UUID, String>(UUID.fromString(listNBT.getStringTagAt(i)), listNBT.getStringTagAt(i + 1)));
 			}
 		}
 
@@ -333,12 +334,7 @@ public final class Component {
 	public int listStart(final int typePointer, final int typeLength) throws WrappedException {
 		return SyscallWrapper.wrap(() -> {
 			final String type = (typePointer == 0) ? null : WasmString.toJava(memory, typePointer, typeLength);
-			final Map<String, String> components = machine.components();
-			if(type == null) {
-				list = new ArrayList<Map.Entry<String, String>>(components.entrySet());
-			} else {
-				list = components.entrySet().stream().filter(i -> i.getValue().equals(type)).collect(Collectors.toCollection(ArrayList::new));
-			}
+			list = machine.components().entrySet().stream().filter(i -> type == null || i.getValue().equals(type)).map(i -> new AbstractMap.SimpleEntry<UUID, String>(UUID.fromString(i.getKey()), i.getValue())).collect(Collectors.toList());
 			listIndex = 0;
 			return 0;
 		});
@@ -350,25 +346,21 @@ public final class Component {
 	 * The internal iterator is advanced to the next entry only on a successful
 	 * call with {@code buffer} set to a non-null value.
 	 *
-	 * @param buffer The buffer to write the UUID into, or null to return the
-	 * required buffer length.
-	 * @param length The length of the buffer.
-	 * @return The length of the string written to {@code buffer} on success;
-	 * the required buffer length, if {@code buffer} is null; or one of {@link
-	 * ErrorCode#MEMORY_FAULT} or {@link ErrorCode#BUFFER_TOO_SHORT}.
+	 * @param buffer The buffer to write the binary UUID address into, which
+	 * must be 16 bytes long.
+	 * @return 1 on success, 0 if there is no next entry, or {@link
+	 * ErrorCode#MEMORY_FAULT} if the buffer is invalid.
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
-	public int listNext(final int buffer, final int length) throws WrappedException {
+	public int listNext(final int buffer) throws WrappedException {
 		return SyscallWrapper.wrap(() -> {
 			if(list == null || listIndex >= list.size()) {
 				return 0;
 			}
-			final int written = WasmString.toWasm(memory, buffer, length, list.get(listIndex).getKey());
-			if(buffer != 0) {
-				++listIndex;
-			}
-			return written;
+			MemoryUtils.writeUUID(memory, buffer, list.get(listIndex).getKey());
+			++listIndex;
+			return 1;
 		});
 	}
 
@@ -400,9 +392,7 @@ public final class Component {
 	/**
 	 * Looks up the type of a component.
 	 *
-	 * @param addressPointer A pointer to a string which is the UUID of a
-	 * component.
-	 * @param addressLength The length of the address string.
+	 * @param addressPointer A pointer to a binary UUID address of a component.
 	 * @param buffer The buffer to write the type into, or null to return the
 	 * required buffer length.
 	 * @param bufferLength The length of the buffer.
@@ -413,10 +403,10 @@ public final class Component {
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
-	public int type(final int addressPointer, final int addressLength, final int buffer, final int bufferLength) throws WrappedException {
+	public int type(final int addressPointer, final int buffer, final int bufferLength) throws WrappedException {
 		return SyscallWrapper.wrap(() -> {
-			final String address = WasmString.toJava(memory, addressPointer, addressLength);
-			final String type = machine.components().get(address);
+			final UUID address = MemoryUtils.readUUID(memory, addressPointer);
+			final String type = machine.components().get(address.toString());
 			if(type == null) {
 				return ErrorCode.NO_SUCH_COMPONENT.asNegative();
 			}
@@ -427,9 +417,7 @@ public final class Component {
 	/**
 	 * Determines which slot a component is installed into.
 	 *
-	 * @param addressPointer A pointer to a string which is the UUID of a
-	 * component.
-	 * @param addressLength The length of the address string.
+	 * @param addressPointer A pointer to a binary UUID address of a component.
 	 * @return The slot number in the computer that contains the component;
 	 * {@link ErrorCode#OTHER} if the component exists but is not installed in
 	 * a slot; or one of {@link ErrorCode#MEMORY_FAULT}, {@link
@@ -437,9 +425,9 @@ public final class Component {
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
-	public int slot(final int addressPointer, final int addressLength) throws WrappedException {
+	public int slot(final int addressPointer) throws WrappedException {
 		return SyscallWrapper.wrap(() -> {
-			final String address = WasmString.toJava(memory, addressPointer, addressLength);
+			final String address = MemoryUtils.readUUID(memory, addressPointer).toString();
 			if(machine.components().containsKey(address)) {
 				final int slot = machine.host().componentSlot(address);
 				return slot >= 0 ? slot : ErrorCode.OTHER.asNegative();
@@ -452,17 +440,15 @@ public final class Component {
 	/**
 	 * Begins iterating over the methods available on a component.
 	 *
-	 * @param addressPointer A pointer to a string which is the UUID of a
-	 * component.
-	 * @param addressLength The length of the address string.
+	 * @param addressPointer A pointer to a binary UUID address of a component.
 	 * @return 0 on success; or one of {@link ErrorCode#MEMORY_FAULT}, {@link
 	 * ErrorCode#STRING_DECODE}, or {@link ErrorCode#NO_SUCH_COMPONENT}.
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
-	public int methodsStartComponent(final int addressPointer, final int addressLength) throws WrappedException {
+	public int methodsStartComponent(final int addressPointer) throws WrappedException {
 		return SyscallWrapper.wrap(() -> {
-			final li.cil.oc.api.network.Component component = getComponent(addressPointer, addressLength);
+			final li.cil.oc.api.network.Component component = getComponent(addressPointer);
 			final Map<String, Callback> snapshot = machine.methods(component.host());
 			methods = snapshot.entrySet().stream().map(MethodInfo::new).collect(Collectors.toCollection(() -> new ArrayList<MethodInfo>(snapshot.size())));
 			methodsIndex = 0;
@@ -538,9 +524,7 @@ public final class Component {
 	/**
 	 * Fetches the documentation for a method on a component.
 	 *
-	 * @param addressPointer A pointer to a string which is the UUID of a
-	 * component.
-	 * @param addressLength The length of the address string.
+	 * @param addressPointer A pointer to a binary UUID address of a component.
 	 * @param methodPointer A pointer to a string which is the name of the
 	 * method to query.
 	 * @param methodLength The length of the method name string.
@@ -554,9 +538,9 @@ public final class Component {
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
-	public int documentationComponent(final int addressPointer, final int addressLength, final int methodPointer, final int methodLength, final int buffer, final int bufferLength) throws WrappedException {
+	public int documentationComponent(final int addressPointer, final int methodPointer, final int methodLength, final int buffer, final int bufferLength) throws WrappedException {
 		return SyscallWrapper.wrap(() -> {
-			final li.cil.oc.api.network.Component component = getComponent(addressPointer, addressLength);
+			final li.cil.oc.api.network.Component component = getComponent(addressPointer);
 			final String method = WasmString.toJava(memory, methodPointer, methodLength);
 			final Callback cb = machine.methods(component.host()).get(method);
 			if(cb == null) {
@@ -599,9 +583,7 @@ public final class Component {
 	/**
 	 * Starts invoking a method on a component.
 	 *
-	 * @param addressPointer A pointer to a string which is the UUID of a
-	 * component.
-	 * @param addressLength The length of the address string.
+	 * @param addressPointer A pointer to a binary UUID address of a component.
 	 * @param methodPointer A pointer to a string which is the name of the
 	 * method to invoke.
 	 * @param methodLength The length of the method name string.
@@ -617,9 +599,9 @@ public final class Component {
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
-	public int invokeComponentMethod(final int addressPointer, final int addressLength, final int methodPointer, final int methodLength, final int paramsPointer, final int paramsLength) throws WrappedException {
+	public int invokeComponentMethod(final int addressPointer, final int methodPointer, final int methodLength, final int paramsPointer, final int paramsLength) throws WrappedException {
 		return SyscallWrapper.wrap(() -> invokeCommon(() -> {
-			final String address = WasmString.toJava(memory, addressPointer, addressLength);
+			final UUID address = MemoryUtils.readUUID(memory, addressPointer);
 			final String method = WasmString.toJava(memory, methodPointer, methodLength);
 			final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer, paramsLength);
 			final ArrayList<Integer> paramDescriptors = new ArrayList<Integer>();
@@ -953,17 +935,15 @@ public final class Component {
 	/**
 	 * Given a component UUID, finds the component.
 	 *
-	 * @param addressPointer A pointer to a string which is the UUID of a
-	 * component.
-	 * @param addressLength The length of the address string.
+	 * @param addressPointer A pointer to a binary UUID address of a component.
 	 * @return The identified component.
 	 * @throws MemoryFaultException If the memory area is invalid.
 	 * @throws StringDecodeException If the string is invalid.
 	 * @throws NoSuchComponentException If the component does not exist or is not
 	 * visible from this computer.
 	 */
-	private li.cil.oc.api.network.Component getComponent(final int addressPointer, final int addressLength) throws MemoryFaultException, StringDecodeException, NoSuchComponentException {
-		return ComponentUtils.getComponent(machine, WasmString.toJava(memory, addressPointer, addressLength));
+	private li.cil.oc.api.network.Component getComponent(final int addressPointer) throws MemoryFaultException, StringDecodeException, NoSuchComponentException {
+		return ComponentUtils.getComponent(machine, MemoryUtils.readUUID(memory, addressPointer).toString());
 	}
 
 	/**
@@ -1077,7 +1057,7 @@ public final class Component {
 		if(list != null) {
 			final NBTTagList listNBT = new NBTTagList();
 			list.stream().forEachOrdered(i -> {
-				listNBT.appendTag(new NBTTagString(i.getKey()));
+				listNBT.appendTag(new NBTTagString(i.getKey().toString()));
 				listNBT.appendTag(new NBTTagString(i.getValue()));
 			});
 			root.setTag(NBT_LIST, listNBT);

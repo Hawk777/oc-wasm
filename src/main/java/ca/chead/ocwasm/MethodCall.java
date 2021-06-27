@@ -8,6 +8,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import li.cil.oc.api.machine.Callback;
 import li.cil.oc.api.machine.LimitReachedException;
@@ -496,7 +497,7 @@ public abstract class MethodCall implements AutoCloseable {
 		/**
 		 * The target component address on which to invoke a method.
 		 */
-		public final String target;
+		public final UUID target;
 
 		/**
 		 * The method name.
@@ -511,7 +512,7 @@ public abstract class MethodCall implements AutoCloseable {
 		 * @param parameters The parameters to pass to the method.
 		 * @param values The opaque values referenced by {@code parameters}.
 		 */
-		public Component(final String address, final String method, final Object[] parameters, final List<ValueReference> values) {
+		public Component(final UUID address, final String method, final Object[] parameters, final List<ValueReference> values) {
 			super(parameters, values);
 			target = Objects.requireNonNull(address);
 			this.method = Objects.requireNonNull(method);
@@ -528,13 +529,13 @@ public abstract class MethodCall implements AutoCloseable {
 		 */
 		public Component(final NBTTagCompound root, final ReferencedValue[] valuePool, final DescriptorTable descriptors) {
 			super(root, valuePool, descriptors);
-			target = root.getString(NBT_TARGET);
+			target = UUID.fromString(root.getString(NBT_TARGET));
 			method = root.getString(NBT_METHOD);
 		}
 
 		@Override
 		protected Callback getCallback(final Machine machine) throws NoSuchComponentException, NoSuchComponentOrValueMethodException {
-			final Callback cb = machine.methods(ComponentUtils.getComponent(machine, target).host()).get(method);
+			final Callback cb = machine.methods(ComponentUtils.getComponent(machine, target.toString()).host()).get(method);
 			if(cb == null) {
 				throw new NoSuchComponentOrValueMethodException();
 			}
@@ -543,13 +544,13 @@ public abstract class MethodCall implements AutoCloseable {
 
 		@Override
 		protected Object[] invokeImpl(final Machine machine) throws Exception {
-			return machine.invoke(target, method, parameters);
+			return machine.invoke(target.toString(), method, parameters);
 		}
 
 		@Override
 		public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable.Allocator descriptorAlloc) {
 			final NBTTagCompound root = super.save(valuePool, descriptorAlloc);
-			root.setString(NBT_TARGET, target);
+			root.setString(NBT_TARGET, target.toString());
 			root.setString(NBT_METHOD, method);
 			return root;
 		}

@@ -14,6 +14,7 @@ import ca.chead.ocwasm.WrappedException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import li.cil.oc.api.machine.Machine;
@@ -193,34 +194,36 @@ public final class Computer {
 	/**
 	 * Returns the computer’s own UUID component address.
 	 *
-	 * @param buffer A pointer to a memory buffer where the address will be
-	 * stored, or null to return the required buffer length.
-	 * @param length The length of the buffer.
-	 * @return The length of the UUID string written to {@code buffer}, on
-	 * success; the required buffer length, if {@code buffer} is null; or one
-	 * of {@link ErrorCode#MEMORY_FAULT} or {@link ErrorCode#BUFFER_TOO_SHORT}.
+	 * @param buffer The buffer to write the binary UUID address into, which
+	 * must be 16 bytes long.
+	 * @return 0 on success, or {@link ErrorCode#MEMORY_FAULT} if the buffer is
+	 * invalid.
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
-	public int address(final int buffer, final int length) throws WrappedException {
-		return SyscallWrapper.wrap(() -> WasmString.toWasm(memory, buffer, length, machine.node().address()));
+	public int address(final int buffer) throws WrappedException {
+		return SyscallWrapper.wrap(() -> {
+			MemoryUtils.writeUUID(memory, buffer, UUID.fromString(machine.node().address()));
+			return 0;
+		});
 	}
 
 	/**
 	 * Returns the UUID component address of a filesystem component that lives
 	 * until the computer shuts down and can be used to hold temporary files.
 	 *
-	 * @param buffer A pointer to a memory buffer where the address will be
-	 * stored, or null to return the required buffer length.
-	 * @param length The length of the buffer.
-	 * @return The length of the UUID string written to {@code buffer}, on
-	 * success; the required buffer length, if {@code buffer} is null; or one
-	 * of {@link ErrorCode#MEMORY_FAULT} or {@link ErrorCode#BUFFER_TOO_SHORT}.
+	 * @param buffer The buffer to write the binary UUID address into, which
+	 * must be 16 bytes long.
+	 * @return 0 on success, or {@link ErrorCode#MEMORY_FAULT} if the buffer is
+	 * invalid.
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
-	public int tmpfsAddress(final int buffer, final int length) throws WrappedException {
-		return SyscallWrapper.wrap(() -> WasmString.toWasm(memory, buffer, length, machine.tmpAddress()));
+	public int tmpfsAddress(final int buffer) throws WrappedException {
+		return SyscallWrapper.wrap(() -> {
+			MemoryUtils.writeUUID(memory, buffer, UUID.fromString(machine.tmpAddress()));
+			return 0;
+		});
 	}
 
 	/**

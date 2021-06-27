@@ -2,11 +2,18 @@ package ca.chead.ocwasm;
 
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.UUID;
 
 /**
  * Provides helper methods for working with linear memory.
  */
 public final class MemoryUtils {
+	/**
+	 * The number of bytes consumed by a binary UUID.
+	 */
+	public static final int UUID_BYTES = 2 * Long.BYTES;
+
 	/**
 	 * Writes an {@code i32} into the module’s linear memory.
 	 *
@@ -62,6 +69,47 @@ public final class MemoryUtils {
 			dup.put(bytes);
 		} catch(final BufferOverflowException exp) {
 			throw new BufferTooShortException();
+		}
+	}
+
+	/**
+	 * Reads a UUID from the module’s linear memory.
+	 *
+	 * @param memory The linear memory.
+	 * @param pointer The address from which to read.
+	 * @return The UUID.
+	 * @throws MemoryFaultException If the memory area is invalid.
+	 */
+	public static UUID readUUID(final ByteBuffer memory, final int pointer) throws MemoryFaultException {
+		final ByteBuffer view = region(memory, pointer, UUID_BYTES);
+		view.order(ByteOrder.BIG_ENDIAN);
+		final long msw;
+		final long lsw;
+		try {
+			msw = view.getLong();
+			lsw = view.getLong();
+		} catch(final IndexOutOfBoundsException exp) {
+			throw new MemoryFaultException();
+		}
+		return new UUID(msw, lsw);
+	}
+
+	/**
+	 * Writes a UUID to the module’s linear memory.
+	 *
+	 * @param memory The linear memory.
+	 * @param pointer The address at which to write.
+	 * @param uuid The UUID to write.
+	 * @throws MemoryFaultException If the memory area is invalid.
+	 */
+	public static void writeUUID(final ByteBuffer memory, final int pointer, final UUID uuid) throws MemoryFaultException {
+		final ByteBuffer view = region(memory, pointer, UUID_BYTES);
+		view.order(ByteOrder.BIG_ENDIAN);
+		try {
+			view.putLong(uuid.getMostSignificantBits());
+			view.putLong(uuid.getLeastSignificantBits());
+		} catch(final IndexOutOfBoundsException exp) {
+			throw new MemoryFaultException();
 		}
 	}
 
