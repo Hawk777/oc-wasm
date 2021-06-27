@@ -75,7 +75,7 @@ public final class Instantiator {
 		for(int i = 1; i < params.length - 2; ++i) {
 			if(params[i] == null) {
 				final WasmImport importAnnotation = (WasmImport) Arrays.stream(annotations[i]).filter(j -> j instanceof WasmImport).findAny().orElseThrow(() -> new IllegalArgumentException("Missing WasmImport annotation on constructor parameter (this is an OC-Wasm bug)"));
-				params[i] = resolver.resolve(importAnnotation.module(), importAnnotation.field());
+				params[i] = resolver.resolve(importAnnotation);
 			}
 		}
 
