@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.IntConsumer;
 import java.util.stream.Stream;
 import li.cil.oc.api.machine.Value;
@@ -252,6 +253,15 @@ public final class CBOR {
 					try(ValueReference ref = descriptorTable.get(descriptor)) {
 						// TODO keep the ref for longer.
 						return ref.get();
+					}
+				} else if(item instanceof ByteString) {
+					final ByteBuffer bb = ByteBuffer.wrap(((ByteString) item).getBytes());
+					if(bb.remaining() == MemoryUtils.UUID_BYTES) {
+						final long msw = bb.getLong();
+						final long lsw = bb.getLong();
+						return new UUID(msw, lsw).toString();
+					} else {
+						throw new CBORDecodeException();
 					}
 				} else {
 					throw new CBORDecodeException();
