@@ -118,7 +118,7 @@ public final class CallResult {
 			return (byte[]) result;
 		} else if(result instanceof Object[]) {
 			try(DescriptorTable.Allocator childAllocator = descriptorAllocator.createChild()) {
-				final byte[] cbor = CBOR.toCBORSequence(Arrays.stream((Object[]) result), childAllocator);
+				final byte[] cbor = CBOR.toCBOR((Object[]) result, childAllocator);
 				result = cbor;
 				descriptorsCreated.addAll(childAllocator.getAllocatedDescriptors());
 				childAllocator.commit();

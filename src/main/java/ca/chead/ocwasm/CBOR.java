@@ -17,7 +17,6 @@ import co.nstant.in.cbor.model.UnicodeString;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -25,7 +24,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.IntConsumer;
-import java.util.stream.Stream;
 import li.cil.oc.api.machine.Value;
 
 /**
@@ -38,57 +36,23 @@ public final class CBOR {
 	private static final long IDENTIFIER_TAG = 39;
 
 	/**
-	 * Converts a sequence of Java objects into a sequence of CBOR data items.
+	 * Converts a Java object into a CBOR data item.
 	 *
-	 * @param objects The objects to convert, each of which must be one of the
-	 * understood types.
+	 * @param object The object to convert, which must be, and whose nested
+	 * items must all be, of the understood types.
 	 * @param descriptorAllocator A descriptor allocator in which to allocate
 	 * descriptors for any opaque values encountered.
 	 * @return The CBOR encoding.
 	 */
-	public static byte[] toCBORSequence(final Stream<Object> objects, final DescriptorTable.Allocator descriptorAllocator) {
+	public static byte[] toCBOR(final Object object, final DescriptorTable.Allocator descriptorAllocator) {
 		try {
 			final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			toCBORSequence(baos, objects, descriptorAllocator);
+			final CborEncoder enc = new CborEncoder(baos);
+			enc.encode(toDataItem(object, descriptorAllocator));
 			return baos.toByteArray();
-		} catch(final IOException exp) {
-			throw new RuntimeException("Impossible I/O error occurred", exp);
-		}
-	}
-
-	/**
-	 * Converts a sequence of Java objects into a sequence of CBOR data items,
-	 * writing the CBOR data items to an output stream.
-	 *
-	 * On failure, the descriptor table is not modified.
-	 *
-	 * @param target The stream to write to.
-	 * @param objects The objects to write.
-	 * @param descriptorAllocator A descriptor allocator in which to allocate
-	 * descriptors for any opaque values encountered.
-	 * @throws IOException If a write to {@code target} fails.
-	 */
-	private static void toCBORSequence(final OutputStream target, final Stream<Object> objects, final DescriptorTable.Allocator descriptorAllocator) throws IOException {
-		Objects.requireNonNull(target);
-		Objects.requireNonNull(objects);
-		Objects.requireNonNull(descriptorAllocator);
-
-		final CborEncoder enc = new CborEncoder(target);
-		final CborException[] exps = new CborException[]{null};
-		objects.forEachOrdered(i -> {
-			try {
-				enc.encode(toDataItem(i, descriptorAllocator));
-			} catch(final CborException e) {
-				if(exps[0] == null) {
-					exps[0] = e;
-				}
-			}
-		});
-		final CborException exp = exps[0];
-		if(exp != null) {
-			final Throwable cause = exp.getCause();
-			if(cause instanceof IOException) {
-				throw (IOException) cause;
+		} catch(final CborException exp) {
+			if(exp.getCause() instanceof IOException) {
+				throw new RuntimeException("Impossible I/O error occurred", exp.getCause());
 			} else {
 				throw new RuntimeException("CBOR encoding error (this is an OC-Wasm bug)", exp);
 			}
@@ -149,77 +113,60 @@ public final class CBOR {
 	}
 
 	/**
-	 * Converts a sequence of CBOR data items to an array of Java objects.
-	 *
-	 * @param source The bytes to read from.
-	 * @param descriptorTable The descriptor table to use to resolve references
-	 * to opaque values.
-	 * @return The objects.
-	 * @throws CBORDecodeException If the data in {@code source} is not a
-	 * sequence of valid CBOR data items or one of the items is of an
-	 * unsupported type.
-	 * @throws BadDescriptorException If the data contains a reference to a
-	 * descriptor, but the descriptor does not exist in the descriptor table.
-	 */
-	public static Object[] toJavaSequence(final ByteBuffer source, final DescriptorTable descriptorTable) throws CBORDecodeException, BadDescriptorException {
-		return toJavaSequence(source, descriptorTable, descriptor -> { });
-	}
-
-	/**
-	 * Converts a sequence of CBOR data items to an array of Java objects.
+	 * Converts a CBOR data item to a Java array.
 	 *
 	 * @param source The bytes to read from.
 	 * @param descriptorTable The descriptor table to use to resolve references
 	 * to opaque values.
 	 * @param descriptorListener A listener which is invoked and passed every
 	 * descriptor encountered during conversion.
-	 * @return The objects.
-	 * @throws CBORDecodeException If the data in {@code source} is not a
-	 * sequence of valid CBOR data items or one of the items is of an
+	 * @return The object.
+	 * @throws CBORDecodeException If the data in {@code source} is not a valid
+	 * CBOR data item or the item or one of its nested items is of an
+	 * unsupported type, or if it is valid but is not an array.
+	 * @throws BadDescriptorException If the data contains a reference to a
+	 * descriptor, but the descriptor does not exist in the descriptor table.
+	 */
+	public static Object[] toJavaArray(final ByteBuffer source, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) throws CBORDecodeException, BadDescriptorException {
+		final Object ret = toJavaObject(source, descriptorTable, descriptorListener);
+		if(ret instanceof Object[]) {
+			return (Object[]) ret;
+		} else {
+			throw new CBORDecodeException();
+		}
+	}
+
+	/**
+	 * Converts a CBOR data item to a Java object.
+	 *
+	 * @param source The bytes to read from.
+	 * @param descriptorTable The descriptor table to use to resolve references
+	 * to opaque values.
+	 * @param descriptorListener A listener which is invoked and passed every
+	 * descriptor encountered during conversion.
+	 * @return The object.
+	 * @throws CBORDecodeException If the data in {@code source} is not a valid
+	 * CBOR data item or the item or one of its nested items is of an
 	 * unsupported type.
 	 * @throws BadDescriptorException If the data contains a reference to a
 	 * descriptor, but the descriptor does not exist in the descriptor table.
 	 */
-	public static Object[] toJavaSequence(final ByteBuffer source, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) throws CBORDecodeException, BadDescriptorException {
+	public static Object toJavaObject(final ByteBuffer source, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) throws CBORDecodeException, BadDescriptorException {
 		Objects.requireNonNull(source);
 		Objects.requireNonNull(descriptorTable);
 		Objects.requireNonNull(descriptorListener);
 
 		if(source.remaining() == 0) {
-			return OCWasm.ZERO_OBJECTS;
+			return null;
 		}
 
-		final List<DataItem> items;
+		final DataItem item;
 		try {
-			items = new CborDecoder(ByteBufferInputStream.wrap(source)).decode();
+			item = new CborDecoder(ByteBufferInputStream.wrap(source)).decodeNext();
 		} catch(final CborException exp) {
 			throw new CBORDecodeException();
 		}
-		return toJavaObjects(items, descriptorTable, descriptorListener);
-	}
-
-	/**
-	 * Converts a list of CBOR data items into an array of Java objects.
-	 *
-	 * @param items The items to convert.
-	 * @param descriptorTable The descriptor table to use to resolve references
-	 * to opaque values.
-	 * @param descriptorListener A listener which is invoked and passed every
-	 * descriptor encountered during conversion.
-	 * @return An array of Java objects corresponding to the given CBOR data
-	 * items.
-	 * @throws CBORDecodeException If one of the items is not of a convertible
-	 * type.
-	 * @throws BadDescriptorException If the data contains a reference to a
-	 * descriptor, but the descriptor does not exist in the descriptor table.
-	 */
-	private static Object[] toJavaObjects(final List<DataItem> items, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) throws CBORDecodeException, BadDescriptorException {
-		final Object[] ret = new Object[items.size()];
-		final Iterator<DataItem> iter = items.iterator();
-		for(int index = 0; index != ret.length; ++index) {
-			ret[index] = toJavaObject(iter.next(), descriptorTable, descriptorListener);
-		}
-		return ret;
+		return toJavaObject(item, descriptorTable, descriptorListener);
 	}
 
 	/**
@@ -270,7 +217,12 @@ public final class CBOR {
 				throw new CBORDecodeException();
 			}
 		} else if(item instanceof Array) {
-			return toJavaObjects(((Array) item).getDataItems(), descriptorTable, descriptorListener);
+			final List<DataItem> items = ((Array) item).getDataItems();
+			final Object[] objects = new Object[items.size()];
+			for(int i = 0; i != objects.length; ++i) {
+				objects[i] = toJavaObject(items.get(i), descriptorTable, descriptorListener);
+			}
+			return objects;
 		} else if(item instanceof ByteString) {
 			return ((ByteString) item).getBytes();
 		} else if(item instanceof Map) {

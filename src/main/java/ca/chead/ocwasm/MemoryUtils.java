@@ -118,6 +118,26 @@ public final class MemoryUtils {
 	 *
 	 * @param memory The linear memory.
 	 * @param pointer The pointer.
+	 * @return A {@code ByteBuffer} which is backed by {@code memory}, with its
+	 * position set to {@code pointer}, and with its limit set to the end of
+	 * memory.
+	 * @throws MemoryFaultException If {@code pointer} points outside valid
+	 * memory.
+	 */
+	public static ByteBuffer region(final ByteBuffer memory, final int pointer) throws MemoryFaultException {
+		if(pointer <= 0 || pointer > memory.limit()) {
+			throw new MemoryFaultException();
+		}
+		final ByteBuffer dup = memory.duplicate();
+		dup.position(pointer);
+		return dup;
+	}
+
+	/**
+	 * Obtains a subslice of a linear memory.
+	 *
+	 * @param memory The linear memory.
+	 * @param pointer The pointer.
 	 * @param length The length, which is ignored if {@code pointer} is zero.
 	 * @return A {@code ByteBuffer} which is backed by {@code memory}, with its
 	 * position set to {@code pointer}, and with its limit set such that the

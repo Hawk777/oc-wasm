@@ -1,6 +1,7 @@
 package ca.chead.ocwasm.syscall;
 
 import ca.chead.ocwasm.CBOR;
+import ca.chead.ocwasm.CBORDecodeException;
 import ca.chead.ocwasm.CPU;
 import ca.chead.ocwasm.CachingSupplier;
 import ca.chead.ocwasm.DescriptorTable;
@@ -12,11 +13,9 @@ import ca.chead.ocwasm.SyscallErrorException;
 import ca.chead.ocwasm.WasmString;
 import ca.chead.ocwasm.WrappedException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 import li.cil.oc.api.machine.Machine;
 import li.cil.oc.api.machine.Signal;
 import li.cil.oc.api.network.Connector;
@@ -241,25 +240,25 @@ public final class Computer {
 	 * Pushes a signal to the signal queue.
 	 *
 	 * The parameters in the {@code params} array may be a mix of numbers,
-	 * strings, and maps containing the preceding types.
+	 * strings, and maps containing the preceding types. The first element must
+	 * be a string and is the signal name.
 	 *
-	 * @param namePointer A pointer to a string containing the name of the
-	 * signal.
-	 * @param nameLength The length of the name string.
-	 * @param paramsPointer A pointer to a CBOR sequence containing the signal
-	 * parameters, or null to not include any parameters.
-	 * @param paramsLength The length of the params sequence.
+	 * @param signalPointer A pointer to a CBOR array containing the signal.
 	 * @return 0 on success; {@link ErrorCode#QUEUE_FULL} if the computer’s
 	 * signal queue is full; or one of {@link ErrorCode#MEMORY_FAULT}, {@link
 	 * ErrorCode#STRING_DECODE}, or {@link ErrorCode#CBOR_DECODE}.
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
-	public int pushSignal(final int namePointer, final int nameLength, final int paramsPointer, final int paramsLength) throws WrappedException {
+	public int pushSignal(final int signalPointer) throws WrappedException {
 		return SyscallWrapper.wrap(() -> {
-			final String name = WasmString.toJava(memory, namePointer, nameLength);
-			final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer, paramsLength);
-			final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors);
+			final Object[] signal = CBOR.toJavaArray(MemoryUtils.region(memory, signalPointer), descriptors, (desc) -> { });
+			if(signal.length == 0 || !(signal[0] instanceof String)) {
+				throw new CBORDecodeException();
+			}
+			final String name = (String) signal[0];
+			final Object[] params = new Object[signal.length - 1];
+			System.arraycopy(signal, 1, params, 0, params.length);
 			return machine.signal(name, params) ? 0 : ErrorCode.QUEUE_FULL.asNegative();
 		});
 	}
@@ -268,19 +267,19 @@ public final class Computer {
 	 * Pops a signal from the signal queue.
 	 *
 	 * On success with non-null {@code buffer}, the signal is popped from the
-	 * queue and written to {@code buffer} as a CBOR sequence, the first
-	 * element of the sequence being the signal name and the remaining elements
-	 * (if any) being the additional parameters. On success with a null {@code
-	 * buffer}, or on failure, the signal is not popped and will be returned on
-	 * the next call.
+	 * queue and written to {@code buffer} as a CBOR array, the first element
+	 * of the array being the signal name and the remaining elements (if any)
+	 * being the additional parameters. On success with a null {@code buffer},
+	 * or on failure, the signal is not popped and will be returned on the next
+	 * call.
 	 *
 	 * @param buffer The buffer to write the signal data into, or null to
 	 * return the required buffer length.
 	 * @param length The length of the buffer.
-	 * @return The length of the CBOR sequence written to {@code buffer} on
-	 * success; the required buffer length, if {@code buffer} is null; zero,
-	 * if there are no signals pending; or one of {@link
-	 * ErrorCode#MEMORY_FAULT} or {@link ErrorCode#BUFFER_TOO_SHORT}.
+	 * @return The length of the CBOR array written to {@code buffer} on
+	 * success; the required buffer length, if {@code buffer} is null; zero, if
+	 * there are no signals pending; or one of {@link ErrorCode#MEMORY_FAULT}
+	 * or {@link ErrorCode#BUFFER_TOO_SHORT}.
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
@@ -291,7 +290,10 @@ public final class Computer {
 				if(signal != null) {
 					poppedSignal = new CachingSupplier<byte[]>(() -> {
 						try(DescriptorTable.Allocator alloc = descriptors.new Allocator()) {
-							final byte[] cbor = CBOR.toCBORSequence(Stream.concat(Stream.of(signal.name()), Arrays.stream(signal.args())), alloc);
+							final Object[] objects = new Object[1 + signal.args().length];
+							objects[0] = signal.name();
+							System.arraycopy(signal.args(), 0, objects, 1, signal.args().length);
+							final byte[] cbor = CBOR.toCBOR(objects, alloc);
 							alloc.commit();
 							return cbor;
 						}

@@ -317,7 +317,7 @@ public abstract class MethodCall implements AutoCloseable {
 		{
 			final byte[] bytes = root.getByteArray(NBT_PARAMETERS);
 			try {
-				parameters = CBOR.toJavaSequence(ByteBuffer.wrap(bytes), descriptors, descriptorsInParameters::add);
+				parameters = CBOR.toJavaArray(ByteBuffer.wrap(bytes), descriptors, descriptorsInParameters::add);
 			} catch(final CBORDecodeException exp) {
 				throw new RuntimeException("Save data is corrupt: MethodCall contains invalid CBOR", exp);
 			} catch(final BadDescriptorException exp) {
@@ -331,7 +331,7 @@ public abstract class MethodCall implements AutoCloseable {
 				return descriptors.get(descriptor);
 			} catch(final BadDescriptorException exp) {
 				// This cannot throw BadDescriptorException because, if it did,
-				// CBOR.toJavaSequence would have failed.
+				// CBOR.toJavaArray would have failed.
 				throw new RuntimeException("Impossible exception", exp);
 			}
 		}).collect(Collectors.toList()));
@@ -451,7 +451,7 @@ public abstract class MethodCall implements AutoCloseable {
 	 */
 	public NBTTagCompound save(final ValuePool valuePool, final DescriptorTable.Allocator descriptorAlloc) {
 		final NBTTagCompound root = new NBTTagCompound();
-		root.setByteArray(NBT_PARAMETERS, CBOR.toCBORSequence(Arrays.stream(parameters), descriptorAlloc));
+		root.setByteArray(NBT_PARAMETERS, CBOR.toCBOR(parameters, descriptorAlloc));
 		return root;
 	}
 

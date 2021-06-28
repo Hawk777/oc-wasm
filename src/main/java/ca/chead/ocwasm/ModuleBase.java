@@ -33,10 +33,6 @@ import java.nio.ByteBuffer;
  * never write a CBOR data item using indefinite-length encoding (using a break
  * marker), but it will accept indefinite-length-encoded values from the Wasm
  * module.</li>
- * <li>A <dfn>CBOR sequence</dfn> is a contiguous region of memory containing
- * zero or more CBOR-encoded Data Items positioned immediately following one
- * another. The length of the encoded data is indicated out-of-band, typically
- * as an additional parameter or return value.</li>
  * </ul>
  *
  * Unless otherwise specified, all syscalls that involve memory access that

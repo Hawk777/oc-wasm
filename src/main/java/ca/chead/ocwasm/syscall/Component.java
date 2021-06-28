@@ -1,6 +1,8 @@
 package ca.chead.ocwasm.syscall;
 
+import ca.chead.ocwasm.BadDescriptorException;
 import ca.chead.ocwasm.CBOR;
+import ca.chead.ocwasm.CBORDecodeException;
 import ca.chead.ocwasm.CallResult;
 import ca.chead.ocwasm.ComponentUtils;
 import ca.chead.ocwasm.DescriptorTable;
@@ -10,6 +12,7 @@ import ca.chead.ocwasm.MemoryFaultException;
 import ca.chead.ocwasm.MemoryUtils;
 import ca.chead.ocwasm.MethodCall;
 import ca.chead.ocwasm.NoSuchComponentException;
+import ca.chead.ocwasm.OCWasm;
 import ca.chead.ocwasm.ReferencedValue;
 import ca.chead.ocwasm.StringDecodeException;
 import ca.chead.ocwasm.SyscallErrorException;
@@ -126,6 +129,50 @@ public final class Component {
 			root.setString(NBT_NAME, name);
 			root.setInteger(NBT_ATTRIBUTES, attributes);
 			return root;
+		}
+	}
+
+	/**
+	 * Information about the parameters to a method call.
+	 */
+	private final class MethodCallParameters {
+		/**
+		 * The parameters.
+		 */
+		public final Object[] params;
+
+		/**
+		 * The opaque values referred to by the parameters.
+		 */
+		public final List<ValueReference> values;
+
+		/**
+		 * Reads the parameters for a method call.
+		 *
+		 * @param pointer The pointer where the parameters are stored, which
+		 * may be null.
+		 * @throws MemoryFaultException If the pointer is invalid or the CBOR
+		 * data runs off the end of memory.
+		 * @throws CBORDecodeException If the CBOR encoding is invalid.
+		 * @throws BadDescriptorException If the CBOR refers to a descriptor
+		 * that is closed.
+		 */
+		MethodCallParameters(final int pointer) throws MemoryFaultException, CBORDecodeException, BadDescriptorException {
+			if(pointer != 0) {
+				final ArrayList<Integer> paramDescriptors = new ArrayList<Integer>();
+				params = CBOR.toJavaArray(MemoryUtils.region(memory, pointer), descriptors, paramDescriptors::add);
+				final ArrayList<ValueReference> v = new ArrayList<ValueReference>(paramDescriptors.size());
+				for(final int paramDescriptor : paramDescriptors) {
+					// This cannot throw BadDescriptorException because, if it
+					// did, CBOR.toJavaArray would have failed; therefore, we
+					// do not have to worry about cleaning up a half-done job.
+					v.add(descriptors.get(paramDescriptor));
+				}
+				values = Collections.unmodifiableList(v);
+			} else {
+				params = OCWasm.ZERO_OBJECTS;
+				values = Collections.emptyList();
+			}
 		}
 	}
 
@@ -587,9 +634,8 @@ public final class Component {
 	 * @param methodPointer A pointer to a string which is the name of the
 	 * method to invoke.
 	 * @param methodLength The length of the method name string.
-	 * @param paramsPointer A pointer to a CBOR sequence of parameters to pass
-	 * to the method, or null if no parameters are needed.
-	 * @param paramsLength The length of the parameters sequence.
+	 * @param paramsPointer A pointer to a CBOR array of parameters to pass to
+	 * the method, or null if no parameters are needed.
 	 * @return 1 if the call completed; 0 if the call has started but will not
 	 * finish until the next timeslice; {@link ErrorCode#QUEUE_FULL} if a
 	 * previous method invocation’s results have not yet been read via a call
@@ -599,21 +645,12 @@ public final class Component {
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
-	public int invokeComponentMethod(final int addressPointer, final int methodPointer, final int methodLength, final int paramsPointer, final int paramsLength) throws WrappedException {
+	public int invokeComponentMethod(final int addressPointer, final int methodPointer, final int methodLength, final int paramsPointer) throws WrappedException {
 		return SyscallWrapper.wrap(() -> invokeCommon(() -> {
 			final UUID address = MemoryUtils.readUUID(memory, addressPointer);
 			final String method = WasmString.toJava(memory, methodPointer, methodLength);
-			final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer, paramsLength);
-			final ArrayList<Integer> paramDescriptors = new ArrayList<Integer>();
-			final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors, paramDescriptors::add);
-			final ArrayList<ValueReference> paramValues = new ArrayList<ValueReference>(paramDescriptors.size());
-			for(final int paramDescriptor : paramDescriptors) {
-				// This cannot throw BadDescriptorException because, if it did,
-				// CBOR.toJavaSequence would have failed; therefore, we do not
-				// have to worry about cleaning up a half-done job.
-				paramValues.add(descriptors.get(paramDescriptor));
-			}
-			return new MethodCall.Component(address, method, params, Collections.unmodifiableList(paramValues));
+			final MethodCallParameters params = new MethodCallParameters(paramsPointer);
+			return new MethodCall.Component(address, method, params.params, params.values);
 		}));
 	}
 
@@ -624,9 +661,8 @@ public final class Component {
 	 * is not used for invoking regular methods.
 	 *
 	 * @param descriptor The descriptor of the opaque value to call.
-	 * @param paramsPointer A pointer to a CBOR sequence of parameters to pass
-	 * to the special method, or null if no parameters are needed.
-	 * @param paramsLength The length of the parameters sequence.
+	 * @param paramsPointer A pointer to a CBOR array of parameters to pass to
+	 * the special method, or null if no parameters are needed.
 	 * @return 1 if the call completed; {@link ErrorCode#QUEUE_FULL} if a
 	 * previous method invocation’s results have not yet been read via a call
 	 * to {@link #invokeEnd}; or one of {@link ErrorCode#MEMORY_FAULT}, {@link
@@ -635,8 +671,8 @@ public final class Component {
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
-	public int invokeValue(final int descriptor, final int paramsPointer, final int paramsLength) throws WrappedException {
-		return SyscallWrapper.wrap(() -> invokeValueSpecialCommon(descriptor, paramsPointer, paramsLength, MethodCall.ValueSpecial.Method.CALL));
+	public int invokeValue(final int descriptor, final int paramsPointer) throws WrappedException {
+		return SyscallWrapper.wrap(() -> invokeValueSpecialCommon(descriptor, paramsPointer, MethodCall.ValueSpecial.Method.CALL));
 	}
 
 	/**
@@ -647,9 +683,8 @@ public final class Component {
 	 * methods.
 	 *
 	 * @param descriptor The descriptor of the opaque value to indexed-read.
-	 * @param paramsPointer A pointer to a CBOR sequence of parameters to pass
-	 * to the special method, or null if no parameters are needed.
-	 * @param paramsLength The length of the parameters sequence.
+	 * @param paramsPointer A pointer to a CBOR array of parameters to pass to
+	 * the special method, or null if no parameters are needed.
 	 * @return 1 if the call completed; {@link ErrorCode#QUEUE_FULL} if a
 	 * previous method invocation’s results have not yet been read via a call
 	 * to {@link #invokeEnd}; or one of {@link ErrorCode#MEMORY_FAULT}, {@link
@@ -658,8 +693,8 @@ public final class Component {
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
-	public int invokeValueIndexedRead(final int descriptor, final int paramsPointer, final int paramsLength) throws WrappedException {
-		return SyscallWrapper.wrap(() -> invokeValueSpecialCommon(descriptor, paramsPointer, paramsLength, MethodCall.ValueSpecial.Method.APPLY));
+	public int invokeValueIndexedRead(final int descriptor, final int paramsPointer) throws WrappedException {
+		return SyscallWrapper.wrap(() -> invokeValueSpecialCommon(descriptor, paramsPointer, MethodCall.ValueSpecial.Method.APPLY));
 	}
 
 	/**
@@ -670,9 +705,8 @@ public final class Component {
 	 * methods.
 	 *
 	 * @param descriptor The descriptor of the opaque value to indexed-write.
-	 * @param paramsPointer A pointer to a CBOR sequence of parameters to pass
-	 * to the special method, or null if no parameters are needed.
-	 * @param paramsLength The length of the parameters sequence.
+	 * @param paramsPointer A pointer to a CBOR array of parameters to pass to
+	 * the special method, or null if no parameters are needed.
 	 * @return 1 if the call completed; {@link ErrorCode#QUEUE_FULL} if a
 	 * previous call’s results have not yet been read via a call to {@link
 	 * #invokeEnd}; or one of {@link ErrorCode#MEMORY_FAULT}, {@link
@@ -681,8 +715,8 @@ public final class Component {
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
-	public int invokeValueIndexedWrite(final int descriptor, final int paramsPointer, final int paramsLength) throws WrappedException {
-		return SyscallWrapper.wrap(() -> invokeValueSpecialCommon(descriptor, paramsPointer, paramsLength, MethodCall.ValueSpecial.Method.UNAPPLY));
+	public int invokeValueIndexedWrite(final int descriptor, final int paramsPointer) throws WrappedException {
+		return SyscallWrapper.wrap(() -> invokeValueSpecialCommon(descriptor, paramsPointer, MethodCall.ValueSpecial.Method.UNAPPLY));
 	}
 
 	/**
@@ -693,9 +727,8 @@ public final class Component {
 	 * @param methodPointer A pointer to a string which is the name of the
 	 * method to invoke.
 	 * @param methodLength The length of the method name string.
-	 * @param paramsPointer A pointer to a CBOR sequence of parameters to pass
-	 * to the method, or null if no parameters are needed.
-	 * @param paramsLength The length of the parameters sequence.
+	 * @param paramsPointer A pointer to a CBOR array of parameters to pass to
+	 * the method, or null if no parameters are needed.
 	 * @return 1 if the call completed; 0 if the call has started but will not
 	 * finish until the next timeslice; {@link ErrorCode#QUEUE_FULL} if a
 	 * previous method invocation’s results have not yet been read via a call
@@ -705,22 +738,12 @@ public final class Component {
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
-	public int invokeValueMethod(final int descriptor, final int methodPointer, final int methodLength, final int paramsPointer, final int paramsLength) throws WrappedException {
+	public int invokeValueMethod(final int descriptor, final int methodPointer, final int methodLength, final int paramsPointer) throws WrappedException {
 		return SyscallWrapper.wrap(() -> invokeCommon(() -> {
 			try(ValueReference target = descriptors.get(descriptor)) {
 				final String method = WasmString.toJava(memory, methodPointer, methodLength);
-				final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer, paramsLength);
-				final ArrayList<Integer> paramDescriptors = new ArrayList<Integer>();
-				final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors, paramDescriptors::add);
-				final ArrayList<ValueReference> paramValues = new ArrayList<ValueReference>(paramDescriptors.size());
-				for(final int paramDescriptor : paramDescriptors) {
-					// This cannot throw BadDescriptorException because, if it
-					// did, CBOR.toJavaSequence would have failed; therefore,
-					// we do not have to worry about cleaning up a half-done
-					// job.
-					paramValues.add(descriptors.get(paramDescriptor));
-				}
-				return new MethodCall.ValueRegular(target, method, params, Collections.unmodifiableList(paramValues));
+				final MethodCallParameters params = new MethodCallParameters(paramsPointer);
+				return new MethodCall.ValueRegular(target, method, params.params, params.values);
 			}
 		}));
 	}
@@ -749,10 +772,10 @@ public final class Component {
 	 * <tr><td>Nonnegative return value</td><td>Yes</td></tr>
 	 * </table>
 	 *
-	 * @param buffer The buffer to write the CBOR-encoded call result sequence
+	 * @param buffer The buffer to write the CBOR-encoded call result array
 	 * into, or null to return the required buffer length.
 	 * @param length The length of the buffer.
-	 * @return The length of the CBOR sequence written to {@code buffer} on
+	 * @return The length of the CBOR array written to {@code buffer} on
 	 * success; the required buffer length, if {@code buffer} is null; {@link
 	 * ErrorCode#MEMORY_FAULT} if the memory area referred to by {@code buffer}
 	 * and {@code length} is invalid; {@link ErrorCode#QUEUE_EMPTY} if no call
@@ -950,9 +973,8 @@ public final class Component {
 	 * Invokes a special method on an opaque value.
 	 *
 	 * @param descriptor The descriptor of the opaque value to call.
-	 * @param paramsPointer A pointer to a CBOR sequence of parameters to pass
-	 * to the call, or null if no parameters are needed.
-	 * @param paramsLength The length of the parameters sequence.
+	 * @param paramsPointer A pointer to a CBOR array of parameters to pass to
+	 * the call, or null if no parameters are needed.
 	 * @param method The special method to invoke.
 	 * @return 1 if the call completed, 0 if the call has started but will not
 	 * finish until the next timeslice, {@link ErrorCode#QUEUE_FULL} if a
@@ -963,21 +985,12 @@ public final class Component {
 	 * the Wasm module instance’s fault and should be reported during the start
 	 * of invocation rather than the end of invocation.
 	 */
-	private int invokeValueSpecialCommon(final int descriptor, final int paramsPointer, final int paramsLength, final MethodCall.ValueSpecial.Method method) throws SyscallErrorException {
+	private int invokeValueSpecialCommon(final int descriptor, final int paramsPointer, final MethodCall.ValueSpecial.Method method) throws SyscallErrorException {
 		return invokeCommon(() -> {
 			try(ValueReference target = descriptors.get(descriptor)) {
-				final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer, paramsLength);
-				final ArrayList<Integer> paramDescriptors = new ArrayList<Integer>();
-				final Object[] params = CBOR.toJavaSequence(paramsBuffer, descriptors, paramDescriptors::add);
-				final ArrayList<ValueReference> paramValues = new ArrayList<ValueReference>(paramDescriptors.size());
-				for(final int paramDescriptor : paramDescriptors) {
-					// This cannot throw BadDescriptorException because, if it
-					// did, CBOR.toJavaSequence would have failed; therefore,
-					// we do not have to worry about cleaning up a half-done
-					// job.
-					paramValues.add(descriptors.get(paramDescriptor));
-				}
-				return new MethodCall.ValueSpecial(target, method, params, Collections.unmodifiableList(paramValues));
+				final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer);
+				final MethodCallParameters params = new MethodCallParameters(paramsPointer);
+				return new MethodCall.ValueSpecial(target, method, params.params, params.values);
 			}
 		});
 	}
