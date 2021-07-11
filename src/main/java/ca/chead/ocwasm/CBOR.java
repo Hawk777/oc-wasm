@@ -86,6 +86,8 @@ public final class CBOR {
 			return ret;
 		} else if(object instanceof String) {
 			return new UnicodeString((String) object);
+		} else if(object instanceof Character) {
+			return new UnicodeString(object.toString());
 		} else if(object instanceof byte[]) {
 			return new ByteString((byte[]) object);
 		} else if(object.getClass().isArray()) {
