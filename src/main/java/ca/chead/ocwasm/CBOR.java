@@ -109,6 +109,16 @@ public final class CBOR {
 				ret.put(toDataItem(i.getKey(), descriptorAlloc), toDataItem(i.getValue(), descriptorAlloc));
 			}
 			return ret;
+		} else if(object instanceof scala.collection.Map) {
+			final Map ret = new Map();
+			@SuppressWarnings("unchecked")
+			final scala.collection.Map<Object, Object> map = (scala.collection.Map<Object, Object>) object;
+			final scala.collection.Iterator<scala.Tuple2<Object, Object>> iter = map.iterator();
+			while(iter.hasNext()) {
+				final scala.Tuple2<Object, Object> entry = iter.next();
+				ret.put(toDataItem(entry._1, descriptorAlloc), toDataItem(entry._2, descriptorAlloc));
+			}
+			return ret;
 		} else {
 			throw new RuntimeException("Unable to CBOR-encode object of type " + object.getClass() + " (this is an OC-Wasm bug or limitation)");
 		}
