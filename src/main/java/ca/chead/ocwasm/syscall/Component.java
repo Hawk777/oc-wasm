@@ -988,7 +988,6 @@ public final class Component {
 	private int invokeValueSpecialCommon(final int descriptor, final int paramsPointer, final MethodCall.ValueSpecial.Method method) throws SyscallErrorException {
 		return invokeCommon(() -> {
 			try(ValueReference target = descriptors.get(descriptor)) {
-				final ByteBuffer paramsBuffer = MemoryUtils.region(memory, paramsPointer);
 				final MethodCallParameters params = new MethodCallParameters(paramsPointer);
 				return new MethodCall.ValueSpecial(target, method, params.params, params.values);
 			}
