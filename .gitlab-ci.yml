@@ -3,7 +3,8 @@
   image:
     name: "gradle:6-jdk8"
   script:
-    - gradle --no-daemon --gradle-user-home gradle-home
+    - gradle --no-daemon --gradle-user-home gradle-home reobfShadowJar
+    - gradle --no-daemon --gradle-user-home gradle-home javadoc || true
   cache:
     paths:
       - gradle-home
@@ -11,6 +12,7 @@
   artifacts:
     paths:
       - build/reobfShadowJar/output.jar
+      - build/docs/javadoc
 
 "Checkstyle":
   stage: test
@@ -31,3 +33,17 @@
     key: gradle
   script:
     - gradle --no-daemon --gradle-user-home gradle-home spotbugsMain
+
+"pages":
+  stage: deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  dependencies:
+    - "Compile"
+  image:
+    name: "gradle:6-jdk8"
+  script:
+    - mv build/docs/javadoc public
+  artifacts:
+    paths:
+      - public
