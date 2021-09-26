@@ -34,6 +34,8 @@ public final class Compiler {
 		/**
 		 * The maximum size of the linear memory as specified in the Wasm
 		 * module.
+		 *
+		 * This value is measured in pages.
 		 */
 		public final OptionalInt maxLinearMemory;
 
