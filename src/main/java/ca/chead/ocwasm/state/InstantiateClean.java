@@ -17,6 +17,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import li.cil.oc.api.machine.ExecutionResult;
 import li.cil.oc.api.machine.Machine;
 import net.minecraft.nbt.NBTTagCompound;
 
@@ -75,6 +76,10 @@ public final class InstantiateClean extends State implements ModuleConstructionL
 		// parameter could be larger than Integer.MAX_VALUE, it will be clamped
 		// by the first (cpu.getInstalledRAM()) which cannot be.
 		final int maxMemSize = (int) Math.min(cpu.getInstalledRAM(), compileResult.maxLinearMemory.orElse(Integer.MAX_VALUE) * (long) OCWasm.PAGE_SIZE);
+		final long initialMemSize = compileResult.initialLinearMemory * (long) OCWasm.PAGE_SIZE;
+		if(maxMemSize < initialMemSize) {
+			return new Transition(null, new ExecutionResult.Error("Insufficient memory: " + maxMemSize + " bytes available but Wasm module requires " + initialMemSize + " to boot"));
+		}
 		memory = ByteBuffer.allocate(maxMemSize);
 
 		// Instantiate the syscall modules.

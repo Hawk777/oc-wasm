@@ -13,6 +13,7 @@ import ca.chead.ocwasm.syscall.Syscalls;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.Optional;
+import li.cil.oc.api.machine.ExecutionResult;
 import li.cil.oc.api.machine.Machine;
 import net.minecraft.nbt.NBTTagCompound;
 
@@ -70,6 +71,10 @@ public final class InstantiateFromSnapshot extends State implements ModuleConstr
 		// parameter could be larger than Integer.MAX_VALUE, it will be clamped
 		// by the first (cpu.getInstalledRAM()) which cannot be.
 		final int maxMemSize = (int) Math.min(cpu.getInstalledRAM(), compileResult.maxLinearMemory.orElse(Integer.MAX_VALUE) * (long) OCWasm.PAGE_SIZE);
+		final long initialMemSize = compileResult.initialLinearMemory * (long) OCWasm.PAGE_SIZE;
+		if(maxMemSize < initialMemSize) {
+			return new Transition(null, new ExecutionResult.Error("Insufficient memory: " + maxMemSize + " bytes available but Wasm module requires " + initialMemSize + " to boot"));
+		}
 		final ByteBuffer memory = ByteBuffer.allocate(maxMemSize);
 
 		// Instantiate the syscalls.
