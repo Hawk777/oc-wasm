@@ -21,11 +21,6 @@ public final class AccountingByteBufferMem extends ByteBufferMem {
 	 */
 	public static final AccountingByteBufferMem INSTANCE = new AccountingByteBufferMem();
 
-	/**
-	 * The size of a page, in bytes.
-	 */
-	private static final int PAGE_SIZE = 65536;
-
 	@Override
 	public Func growMemory(final FuncContext context, final Func func) {
 		// The base class implements memory.grow as a call to a synthetic
@@ -68,7 +63,7 @@ public final class AccountingByteBufferMem extends ByteBufferMem {
 
 		// If the new size would be larger than the maximum memory size, fail.
 		// Calculate as long to avoid possible overflow.
-		final long deltaBytes = deltaPages * (long) PAGE_SIZE;
+		final long deltaBytes = deltaPages * (long) OCWasm.PAGE_SIZE;
 		final long newLimitBytes = memory.limit() + deltaBytes;
 		if(newLimitBytes > memory.capacity()) {
 			return -1;
@@ -82,7 +77,7 @@ public final class AccountingByteBufferMem extends ByteBufferMem {
 		}
 
 		// OK.
-		final int oldLimitPages = memory.limit() / PAGE_SIZE;
+		final int oldLimitPages = memory.limit() / OCWasm.PAGE_SIZE;
 		memory.limit((int) newLimitBytes);
 		instance.freeMemory -= (int) deltaWords;
 		return oldLimitPages;

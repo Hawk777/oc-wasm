@@ -106,6 +106,11 @@ public final class OCWasm {
 	public static final Charset UTF8 = Charset.forName("UTF-8");
 
 	/**
+	 * The size of a page, in bytes.
+	 */
+	public static final int PAGE_SIZE = 65536;
+
+	/**
 	 * Constructs the mod instance.
 	 */
 	public OCWasm() {
