@@ -209,16 +209,6 @@ public final class Compiler {
 	}
 
 	/**
-	 * Returns the size, in bytes, of all globals in a module.
-	 *
-	 * @param module The module.
-	 * @return The size of the globals.
-	 */
-	public static int globalsSize(final Node.Module module) {
-		return module.getGlobals().stream().mapToInt(i -> getValueBytes(i.getType().getContentType())).sum();
-	}
-
-	/**
 	 * Returns the number of bytes needed to store a given Wasm value type.
 	 *
 	 * @param type The Wasm type.
