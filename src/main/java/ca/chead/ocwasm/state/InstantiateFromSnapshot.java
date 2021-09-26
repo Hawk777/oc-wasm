@@ -6,6 +6,7 @@ import ca.chead.ocwasm.ExceptionTranslator;
 import ca.chead.ocwasm.Instantiator;
 import ca.chead.ocwasm.ModuleBase;
 import ca.chead.ocwasm.ModuleConstructionListener;
+import ca.chead.ocwasm.OCWasm;
 import ca.chead.ocwasm.Snapshot;
 import ca.chead.ocwasm.SnapshotOrGeneration;
 import ca.chead.ocwasm.syscall.Syscalls;
@@ -65,8 +66,10 @@ public final class InstantiateFromSnapshot extends State implements ModuleConstr
 
 	@Override
 	public Transition runThreaded() {
-		// Create the memory.
-		final int maxMemSize = Math.min(cpu.getInstalledRAM(), compileResult.maxLinearMemory.orElse(Integer.MAX_VALUE));
+		// Create the memory. The (int) cast is safe because, while the second
+		// parameter could be larger than Integer.MAX_VALUE, it will be clamped
+		// by the first (cpu.getInstalledRAM()) which cannot be.
+		final int maxMemSize = (int) Math.min(cpu.getInstalledRAM(), compileResult.maxLinearMemory.orElse(Integer.MAX_VALUE) * (long) OCWasm.PAGE_SIZE);
 		final ByteBuffer memory = ByteBuffer.allocate(maxMemSize);
 
 		// Instantiate the syscalls.

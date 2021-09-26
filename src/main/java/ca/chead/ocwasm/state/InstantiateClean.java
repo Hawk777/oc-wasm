@@ -71,8 +71,10 @@ public final class InstantiateClean extends State implements ModuleConstructionL
 
 	@Override
 	public Transition runThreaded() {
-		// Create the memory.
-		final int maxMemSize = Math.min(cpu.getInstalledRAM(), compileResult.maxLinearMemory.orElse(Integer.MAX_VALUE));
+		// Create the memory. The (int) cast is safe because, while the second
+		// parameter could be larger than Integer.MAX_VALUE, it will be clamped
+		// by the first (cpu.getInstalledRAM()) which cannot be.
+		final int maxMemSize = (int) Math.min(cpu.getInstalledRAM(), compileResult.maxLinearMemory.orElse(Integer.MAX_VALUE) * (long) OCWasm.PAGE_SIZE);
 		memory = ByteBuffer.allocate(maxMemSize);
 
 		// Instantiate the syscall modules.
