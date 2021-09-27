@@ -17,6 +17,7 @@ import co.nstant.in.cbor.model.UnicodeString;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -47,12 +48,30 @@ public final class CBOR {
 	public static byte[] toCBOR(final Object object, final DescriptorTable.Allocator descriptorAllocator) {
 		try {
 			final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			final CborEncoder enc = new CborEncoder(baos);
-			enc.encode(toDataItem(object, descriptorAllocator));
+			toCBOR(object, descriptorAllocator, baos);
 			return baos.toByteArray();
+		} catch(final IOException exp) {
+			throw new RuntimeException("Impossible I/O error occurred", exp.getCause());
+		}
+	}
+
+	/**
+	 * Converts a Java object into a CBOR data item and writes it to a stream.
+	 *
+	 * @param object The object to convert, which must be, and whose nested
+	 * items must all be, of the understood types.
+	 * @param descriptorAllocator A descriptor allocator in which to allocate
+	 * descriptors for any opaque values encountered.
+	 * @param stream The stream to write the bytes to.
+	 * @throws IOException If writing to the stream fails.
+	 */
+	public static void toCBOR(final Object object, final DescriptorTable.Allocator descriptorAllocator, final OutputStream stream) throws IOException {
+		try {
+			final CborEncoder enc = new CborEncoder(stream);
+			enc.encode(toDataItem(object, descriptorAllocator));
 		} catch(final CborException exp) {
 			if(exp.getCause() instanceof IOException) {
-				throw new RuntimeException("Impossible I/O error occurred", exp.getCause());
+				throw (IOException) exp.getCause();
 			} else {
 				throw new RuntimeException("CBOR encoding error (this is an OC-Wasm bug)", exp);
 			}
