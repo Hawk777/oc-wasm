@@ -12,6 +12,8 @@ import ca.chead.ocwasm.ShutdownException;
 import ca.chead.ocwasm.SyscallErrorException;
 import ca.chead.ocwasm.WasmString;
 import ca.chead.ocwasm.WrappedException;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.UUID;
@@ -267,16 +269,16 @@ public final class Computer {
 	 * Pops a signal from the signal queue.
 	 *
 	 * On success with non-null {@code buffer}, the signal is popped from the
-	 * queue and written to {@code buffer} as a CBOR array, the first element
-	 * of the array being the signal name and the remaining elements (if any)
-	 * being the additional parameters. On success with a null {@code buffer},
-	 * or on failure, the signal is not popped and will be returned on the next
-	 * call.
+	 * queue and written to {@code buffer} as a two-element CBOR sequence. The
+	 * first item in the sequence is the signal name as a string; the second
+	 * item is an array holding the signal parameters. On success with a null
+	 * {@code buffer}, or on failure, the signal is not popped and will be
+	 * returned on the next call.
 	 *
 	 * @param buffer The buffer to write the signal data into, or null to
 	 * return the required buffer length.
 	 * @param length The length of the buffer.
-	 * @return The length of the CBOR array written to {@code buffer} on
+	 * @return The length of the CBOR sequence written to {@code buffer} on
 	 * success; the required buffer length, if {@code buffer} is null; zero, if
 	 * there are no signals pending; or one of {@link ErrorCode#MEMORY_FAULT}
 	 * or {@link ErrorCode#BUFFER_TOO_SHORT}.
@@ -290,10 +292,15 @@ public final class Computer {
 				if(signal != null) {
 					poppedSignal = new CachingSupplier<byte[]>(() -> {
 						try(DescriptorTable.Allocator alloc = descriptors.new Allocator()) {
-							final Object[] objects = new Object[1 + signal.args().length];
-							objects[0] = signal.name();
-							System.arraycopy(signal.args(), 0, objects, 1, signal.args().length);
-							final byte[] cbor = CBOR.toCBOR(objects, alloc);
+							final byte[] cbor;
+							try {
+								final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+								CBOR.toCBOR(signal.name(), alloc, baos);
+								CBOR.toCBOR(signal.args(), alloc, baos);
+								cbor = baos.toByteArray();
+							} catch(final IOException exp) {
+								throw new RuntimeException("Impossible I/O error occurred", exp);
+							}
 							alloc.commit();
 							return cbor;
 						}
