@@ -3,7 +3,6 @@ package ca.chead.ocwasm;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
-import java.nio.charset.Charset;
 import java.util.Objects;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
@@ -99,11 +98,6 @@ public final class OCWasm {
 	 * This is used in a few places to avoid unnecessary allocations.
 	 */
 	public static final Object[] ZERO_OBJECTS = new Object[0];
-
-	/**
-	 * The UTF-8 encoding.
-	 */
-	public static final Charset UTF8 = Charset.forName("UTF-8");
 
 	/**
 	 * The size of a page, in bytes.

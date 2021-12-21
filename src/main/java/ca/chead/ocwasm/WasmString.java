@@ -6,6 +6,7 @@ import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.CoderResult;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Handles moving strings between Wasm and Java.
@@ -27,14 +28,14 @@ public final class WasmString {
 	 */
 	public static int toWasm(final ByteBuffer memory, final int buffer, final int length, final String string) throws MemoryFaultException, BufferTooShortException {
 		if(buffer == 0) {
-			return OCWasm.UTF8.encode(string).limit();
+			return StandardCharsets.UTF_8.encode(string).limit();
 		}
 		if(buffer < 0 || length < 0 || buffer + length > memory.limit()) {
 			throw new MemoryFaultException();
 		}
 		final ByteBuffer target = memory.duplicate();
 		target.position(buffer).limit(buffer + length);
-		final CharsetEncoder enc = OCWasm.UTF8.newEncoder();
+		final CharsetEncoder enc = StandardCharsets.UTF_8.newEncoder();
 		CoderResult cr = enc.encode(CharBuffer.wrap(string), target, true);
 		if(cr.isUnderflow()) {
 			cr = enc.flush(target);
@@ -85,7 +86,7 @@ public final class WasmString {
 		}
 		source.position(pointer).limit(pointer + actualLength);
 		try {
-			return OCWasm.UTF8.newDecoder().decode(source).toString();
+			return StandardCharsets.UTF_8.newDecoder().decode(source).toString();
 		} catch(final CharacterCodingException exp) {
 			throw new StringDecodeException();
 		}

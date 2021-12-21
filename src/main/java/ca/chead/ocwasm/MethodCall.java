@@ -1,6 +1,7 @@
 package ca.chead.ocwasm;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -220,7 +221,7 @@ public abstract class MethodCall implements AutoCloseable {
 
 		@Override
 		public Object[] toArray() {
-			return Arrays.stream(parameters).map(i -> (i instanceof byte[]) ? OCWasm.UTF8.decode(ByteBuffer.wrap((byte[]) i)) : i).toArray();
+			return Arrays.stream(parameters).map(i -> (i instanceof byte[]) ? StandardCharsets.UTF_8.decode(ByteBuffer.wrap((byte[]) i)) : i).toArray();
 		}
 	}
 
