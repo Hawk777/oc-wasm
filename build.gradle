@@ -2,11 +2,11 @@
 buildscript {
 	repositories {
 		maven {
-			url = 'https://files.minecraftforge.net/maven'
+			url = 'https://maven.minecraftforge.net/'
 		}
 	}
 	dependencies {
-		classpath 'net.minecraftforge.gradle:ForgeGradle:4.+'
+		classpath 'net.minecraftforge.gradle:ForgeGradle:5.+'
 	}
 }
 
@@ -40,6 +40,7 @@ sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = co
 
 // Arrange to fill in the metadata in mcmod.info automatically.
 processResources {
+	duplicatesStrategy = DuplicatesStrategy.INCLUDE
 	from(sourceSets.main.resources.srcDirs) {
 		include 'mcmod.info'
 		expand 'group': project.group, 'version': project.version
