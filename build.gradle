@@ -42,7 +42,7 @@ sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = co
 processResources {
 	from(sourceSets.main.resources.srcDirs) {
 		include 'mcmod.info'
-		expand 'group': group, 'version': version
+		expand 'group': project.group, 'version': project.version
 	}
 }
 
