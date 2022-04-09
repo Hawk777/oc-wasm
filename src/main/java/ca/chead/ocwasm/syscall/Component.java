@@ -822,6 +822,7 @@ public final class Component {
 	 * completed, the method call does not happen. If the method call has
 	 * completed but its result has not yet been fetched via {@link
 	 * #invokeEnd}, the result is discarded.
+	 *
 	 * @throws WrappedException If the implementation fails.
 	 */
 	@Syscall
