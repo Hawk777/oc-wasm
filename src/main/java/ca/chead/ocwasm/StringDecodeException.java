@@ -10,6 +10,6 @@ public final class StringDecodeException extends SyscallErrorException {
 	 * Constructs a new {@code StringDecodeException}.
 	 */
 	public StringDecodeException() {
-		super(ErrorCode.STRING_DECODE);
+		super(ErrorCode.STRING_DECODE, null);
 	}
 }

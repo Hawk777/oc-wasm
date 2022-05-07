@@ -11,6 +11,6 @@ public final class BadDescriptorException extends SyscallErrorException {
 	 * Constructs a new {@code BadDescriptorException}.
 	 */
 	public BadDescriptorException() {
-		super(ErrorCode.BAD_DESCRIPTOR);
+		super(ErrorCode.BAD_DESCRIPTOR, null);
 	}
 }

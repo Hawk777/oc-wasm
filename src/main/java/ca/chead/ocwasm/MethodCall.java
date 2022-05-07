@@ -435,9 +435,9 @@ public abstract class MethodCall implements AutoCloseable {
 				throw new RuntimeException("Indirect method call returned LimitReachedException, which should be impossible");
 			}
 		} catch(final IllegalArgumentException exp) {
-			throw new BadParametersException();
+			throw new BadParametersException(exp);
 		} catch(final Throwable t) {
-			throw new OtherException();
+			throw new OtherException(t);
 		}
 		return result != null ? result : OCWasm.ZERO_OBJECTS;
 	}

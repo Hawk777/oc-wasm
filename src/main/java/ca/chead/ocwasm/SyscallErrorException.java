@@ -16,9 +16,10 @@ public class SyscallErrorException extends Exception {
 	 * Constructs a new {@code SyscallErrorException}.
 	 *
 	 * @param code The error code.
+	 * @param cause The cause of this exception.
 	 */
-	protected SyscallErrorException(final ErrorCode code) {
-		super(code.name());
+	protected SyscallErrorException(final ErrorCode code, final Throwable cause) {
+		super(code.name(), cause);
 		this.code = code;
 	}
 

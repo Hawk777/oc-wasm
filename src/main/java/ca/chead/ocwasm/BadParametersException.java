@@ -8,8 +8,10 @@ public final class BadParametersException extends SyscallErrorException {
 
 	/**
 	 * Constructs a new {@code BadParametersException}.
+	 *
+	 * @param cause The cause of this exception.
 	 */
-	public BadParametersException() {
-		super(ErrorCode.BAD_PARAMETERS);
+	public BadParametersException(final Throwable cause) {
+		super(ErrorCode.BAD_PARAMETERS, cause);
 	}
 }

@@ -10,6 +10,6 @@ public final class MemoryFaultException extends SyscallErrorException {
 	 * Constructs a new {@code MemoryFaultException}.
 	 */
 	public MemoryFaultException() {
-		super(ErrorCode.MEMORY_FAULT);
+		super(ErrorCode.MEMORY_FAULT, null);
 	}
 }

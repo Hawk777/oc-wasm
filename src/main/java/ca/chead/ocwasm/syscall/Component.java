@@ -234,6 +234,15 @@ public final class Component {
 	private static final String NBT_CALL_RESULT = "callResult";
 
 	/**
+	 * The name of the NBT tag that holds the {@link #lastException} field.
+	 *
+	 * This tag is encoded in the form of a {@link
+	 * ComponentCallExceptionRecord}. It is absent if {@link #lastException} is
+	 * {@code null}.
+	 */
+	private static final String NBT_LAST_EXCEPTION = "lastException";
+
+	/**
 	 * The machine on which the module operates.
 	 */
 	private final Machine machine;
@@ -284,6 +293,11 @@ public final class Component {
 	private CallResult callResult;
 
 	/**
+	 * The last component call exception record.
+	 */
+	private ComponentCallExceptionRecord lastException;
+
+	/**
 	 * Constructs a new {@code Component}.
 	 *
 	 * @param machine The machine on which the module operates.
@@ -301,6 +315,7 @@ public final class Component {
 		methodsIndex = 0;
 		pendingCall = null;
 		callResult = null;
+		lastException = null;
 	}
 
 	/**
@@ -363,6 +378,13 @@ public final class Component {
 			callResult = new CallResult(root.getCompoundTag(NBT_CALL_RESULT));
 		} else {
 			callResult = null;
+		}
+
+		// Load lastException.
+		if(root.hasKey(NBT_LAST_EXCEPTION)) {
+			lastException = ComponentCallExceptionRecord.load(root.getCompoundTag(NBT_LAST_EXCEPTION));
+		} else {
+			lastException = null;
 		}
 	}
 
@@ -630,6 +652,12 @@ public final class Component {
 	/**
 	 * Starts invoking a method on a component.
 	 *
+	 * This system call modifies the last component call exception record. If
+	 * the return value is anything other than 0, the last component call
+	 * exception record is updated to reflect the result of the component call.
+	 * If the return value is 0, the last component exception record is cleared
+	 * and will be updated once the component call actually takes place.
+	 *
 	 * @param addressPointer A pointer to a binary UUID address of a component.
 	 * @param methodPointer A pointer to a string which is the name of the
 	 * method to invoke.
@@ -660,6 +688,8 @@ public final class Component {
 	 * This syscall invokes the special method “call” on the opaque value. It
 	 * is not used for invoking regular methods.
 	 *
+	 * This system call modifies the last component call exception record.
+	 *
 	 * @param descriptor The descriptor of the opaque value to call.
 	 * @param paramsPointer A pointer to a CBOR array of parameters to pass to
 	 * the special method, or null if no parameters are needed.
@@ -681,6 +711,8 @@ public final class Component {
 	 * This syscall invokes the special method “indexed-read”, also known as
 	 * “apply”, on the opaque value. It is not used for invoking regular
 	 * methods.
+	 *
+	 * This system call modifies the last component call exception record.
 	 *
 	 * @param descriptor The descriptor of the opaque value to indexed-read.
 	 * @param paramsPointer A pointer to a CBOR array of parameters to pass to
@@ -704,6 +736,8 @@ public final class Component {
 	 * “unapply”, on the opaque value. It is not used for invoking regular
 	 * methods.
 	 *
+	 * This system call modifies the last component call exception record.
+	 *
 	 * @param descriptor The descriptor of the opaque value to indexed-write.
 	 * @param paramsPointer A pointer to a CBOR array of parameters to pass to
 	 * the special method, or null if no parameters are needed.
@@ -721,6 +755,12 @@ public final class Component {
 
 	/**
 	 * Starts invoking a regular method on an opaque value.
+	 *
+	 * This system call modifies the last component call exception record. If
+	 * the return value is anything other than 0, the last component call
+	 * exception record is updated to reflect the result of the component call.
+	 * If the return value is 0, the last component exception record is cleared
+	 * and will be updated once the component call actually takes place.
 	 *
 	 * @param descriptor The descriptor of the opaque value on which to invoke
 	 * the method.
@@ -771,6 +811,15 @@ public final class Component {
 	 * <tr><td>{@code buffer} is null</td><td>No</td></tr>
 	 * <tr><td>Nonnegative return value</td><td>Yes</td></tr>
 	 * </table>
+	 *
+	 * Certain {@link ErrorCode} values (a subset of those that fetch the call
+	 * result) carry an associated exception. After one of these errors is
+	 * returned by this syscall, {@link #lastExceptionMessage} and {@link
+	 * #lastExceptionIsType} can be called to obtain more detailed error
+	 * information; this additional information remains available until the
+	 * next successful call to {@link #invokeComponentMethod}, {@link
+	 * #invokeValue}, {@link #invokeValueIndexedRead}, {@link
+	 * #invokeValueIndexedWrite}, or {@link #invokeValueMethod}.
 	 *
 	 * @param buffer The buffer to write the CBOR-encoded call result array
 	 * into, or null to return the required buffer length.
@@ -844,6 +893,66 @@ public final class Component {
 	}
 
 	/**
+	 * Returns the message from the last component call exception.
+	 *
+	 * This additional error information is only available after {@link
+	 * #invokeEnd} returns an {@link ErrorCode} that carries an associated
+	 * exception until the next successful call to {@link
+	 * #invokeComponentMethod}, {@link #invokeValue}, {@link
+	 * #invokeValueIndexedRead}, {@link #invokeValueIndexedWrite}, or {@link
+	 * #invokeValueMethod}.
+	 *
+	 * @param buffer The buffer to write the message string into, or null to
+	 * return the required buffer length.
+	 * @param bufferLength The length of the buffer.
+	 * @return The length of the string written to {@code buffer} on success;
+	 * the required buffer length, if {@code buffer} is null, {@link
+	 * ErrorCode#QUEUE_EMPTY} if there is no last component call exception, or
+	 * one of {@link ErrorCode#MEMORY_FAULT} or {@link
+	 * ErrorCode#BUFFER_TOO_SHORT}.
+	 * @throws WrappedException If the implementation fails.
+	 */
+	@Syscall
+	public int lastExceptionMessage(final int buffer, final int bufferLength) throws WrappedException {
+		return SyscallWrapper.wrap(() -> {
+			if(lastException == null || callResult != null || pendingCall != null) {
+				return ErrorCode.QUEUE_EMPTY.asNegative();
+			}
+			return WasmString.toWasm(memory, buffer, bufferLength, lastException.getMessage());
+		});
+	}
+
+	/**
+	 * Checks the type of the last component call exception.
+	 *
+	 * This additional error information is only available after {@link
+	 * #invokeEnd} returns an {@link ErrorCode} that carries an associated
+	 * exception until the next successful call to {@link
+	 * #invokeComponentMethod}, {@link #invokeValue}, {@link
+	 * #invokeValueIndexedRead}, {@link #invokeValueIndexedWrite}, or {@link
+	 * #invokeValueMethod}.
+	 *
+	 * @param classPointer A pointer to a string which is the fully qualified
+	 * Java class name to test.
+	 * @param classLength The length of the class name string.
+	 * @return 1 if the last component call exception’s type is the specified
+	 * class or a subclass thereof, 0 if not, {@link ErrorCode#QUEUE_EMPTY} if
+	 * there is no last component call exception, or one of {@link
+	 * ErrorCode#MEMORY_FAULT} or {@link ErrorCode#STRING_DECODE}.
+	 * @throws WrappedException If the implementation fails.
+	 */
+	@Syscall
+	public int lastExceptionIsType(final int classPointer, final int classLength) throws WrappedException {
+		return SyscallWrapper.wrap(() -> {
+			if(lastException == null || callResult != null || pendingCall != null) {
+				return ErrorCode.QUEUE_EMPTY.asNegative();
+			}
+			final String className = WasmString.toJava(memory, classPointer, classLength);
+			return lastException.isSubclassOf(className) ? 1 : 0;
+		});
+	}
+
+	/**
 	 * Checks whether the component module requires an indirect call.
 	 *
 	 * @return {@code true} if an indirect call is needed, or {@code false} if
@@ -873,8 +982,10 @@ public final class Component {
 			try {
 				result = pendingCall.invokeIndirect(machine);
 			} catch(final SyscallErrorException exp) {
-				// The invocation failed. Save the error code.
+				// The invocation failed. Save the error code and exception
+				// information.
 				callResult = new CallResult(exp.errorCode());
+				lastException = ComponentCallExceptionRecord.fromException(exp);
 				// In this case there are no results, and there is no need to
 				// keep holding onto the call.
 				pendingCall.close();
@@ -1023,6 +1134,7 @@ public final class Component {
 		final MethodCall call = builder.build();
 
 		// Try to invoke it directly, otherwise pend it.
+		lastException = null;
 		try {
 			final Object[] result = call.invokeDirect(machine);
 			// The call completed. If we left the result in object-graph form,
@@ -1052,6 +1164,7 @@ public final class Component {
 			// Exceptions on *the call itself*, as opposed to on gathering the
 			// parameters, should be reported via invokeEnd instead.
 			callResult = new CallResult(exp.errorCode());
+			lastException = ComponentCallExceptionRecord.fromException(exp);
 			// Dispose the failed call.
 			call.close();
 			return 1;
@@ -1100,6 +1213,9 @@ public final class Component {
 		}
 		if(pendingCall != null) {
 			root.setTag(NBT_PENDING_CALL, pendingCall.save(valuePool, descriptorAlloc));
+		}
+		if(lastException != null) {
+			root.setTag(NBT_LAST_EXCEPTION, lastException.save());
 		}
 		return root;
 	}

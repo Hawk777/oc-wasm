@@ -10,6 +10,6 @@ public final class NoSuchComponentException extends SyscallErrorException {
 	 * Constructs a new {@code NoSuchComponentException}.
 	 */
 	public NoSuchComponentException() {
-		super(ErrorCode.NO_SUCH_COMPONENT);
+		super(ErrorCode.NO_SUCH_COMPONENT, null);
 	}
 }

@@ -10,6 +10,6 @@ public final class NoSuchComponentOrValueMethodException extends SyscallErrorExc
 	 * Constructs a new {@code NoSuchComponentOrValueException}.
 	 */
 	public NoSuchComponentOrValueMethodException() {
-		super(ErrorCode.NO_SUCH_METHOD);
+		super(ErrorCode.NO_SUCH_METHOD, null);
 	}
 }

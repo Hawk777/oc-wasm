@@ -9,8 +9,10 @@ public final class OtherException extends SyscallErrorException {
 
 	/**
 	 * Constructs a new {@code OtherException}.
+	 *
+	 * @param cause The cause of this exception.
 	 */
-	public OtherException() {
-		super(ErrorCode.OTHER);
+	public OtherException(final Throwable cause) {
+		super(ErrorCode.OTHER, cause);
 	}
 }

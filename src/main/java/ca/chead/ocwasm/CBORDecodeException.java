@@ -11,6 +11,6 @@ public final class CBORDecodeException extends SyscallErrorException {
 	 * Constructs a new {@code CBORDecodeException}.
 	 */
 	public CBORDecodeException() {
-		super(ErrorCode.CBOR_DECODE);
+		super(ErrorCode.CBOR_DECODE, null);
 	}
 }

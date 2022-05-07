@@ -11,6 +11,6 @@ public final class BufferTooShortException extends SyscallErrorException {
 	 * Constructs a new {@code BufferTooShortException}.
 	 */
 	public BufferTooShortException() {
-		super(ErrorCode.BUFFER_TOO_SHORT);
+		super(ErrorCode.BUFFER_TOO_SHORT, null);
 	}
 }
