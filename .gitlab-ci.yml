@@ -33,6 +33,9 @@
     key: gradle
   script:
     - gradle --no-daemon --gradle-user-home gradle-home spotbugsMain
+  artifacts:
+    paths:
+      - build/reports/spotbugs/main.xml
 
 "pages":
   stage: deploy
