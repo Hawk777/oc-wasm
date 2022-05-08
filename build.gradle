@@ -33,7 +33,7 @@ repositories {
 apply plugin: 'net.minecraftforge.gradle'
 
 // Set basic properties.
-version = '1.12.2-0.2.0'
+version = '1.12.2-0.3.0'
 group = 'ca.chead.oc-wasm'
 archivesBaseName = 'oc-wasm'
 sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8'
