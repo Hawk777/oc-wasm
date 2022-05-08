@@ -36,6 +36,7 @@
   artifacts:
     paths:
       - build/reports/spotbugs/main.xml
+    when: on_failure
 
 "pages":
   stage: deploy
