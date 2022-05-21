@@ -45,6 +45,9 @@ Working in Rust
 A number of crates are available to make writing OC-Wasm programs in Rust
 ergonomic:
 
+* [OC-Wasm-Cassette](https://crates.io/crates/oc-wasm-cassette) provides an
+  easy way to use the Cassette async executor to run an `async fn` as your main
+  function.
 * [OC-Wasm-Sys](https://crates.io/crates/oc-wasm-sys) is a set of raw FFI
   bindings. You probably don’t want to use this crate directly, but it
   underpins all the other ones.
