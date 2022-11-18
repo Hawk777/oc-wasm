@@ -9,17 +9,22 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import net.minecraftforge.common.config.Config;
+import net.minecraftforge.common.config.ConfigManager;
+import net.minecraftforge.fml.client.event.ConfigChangedEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
 import net.minecraftforge.fml.common.event.FMLServerStoppedEvent;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import org.apache.logging.log4j.Logger;
 
 /**
  * The mod entry point.
  */
 @Mod(modid = OCWasm.MODID, name = OCWasm.NAME, version = OCWasm.VERSION, useMetadata = true, acceptableRemoteVersions = "*")
+@Mod.EventBusSubscriber
 // OCWasm is instantiated by FML; it is not an uninstantiated utility class.
 // However, CPU is instantiated by OpenComputers and isn’t passed any
 // constructor parameters, so it can’t get hold of a reference to the OCWasm
@@ -33,6 +38,20 @@ import org.apache.logging.log4j.Logger;
 // expecting you to initialize in your constructor.
 @SuppressWarnings({"checkstyle:HideUtilityClassConstructor", "checkstyle:VisibilityModifier"})
 public final class OCWasm {
+	/**
+	 * Configuration for the mod.
+	 */
+	@Config(modid = MODID)
+	public static class OCWasmConfig {
+		/**
+		 * Whether the {@link ca.chead.ocwasm.syscall.Computer#debug} method
+		 * writes to the Minecraft log.
+		 */
+		@Config.Comment({"Whether the computer.debug syscall writes to the Minecraft debug log (otherwise, debug output is discarded)."})
+		@Config.Name("Enable Debug")
+		public static boolean enableDebug = false;
+	}
+
 	/**
 	 * The mod ID.
 	 */
@@ -252,6 +271,18 @@ public final class OCWasm {
 			// but that’s what the user asked for.
 		}
 		backgroundExecutor = null;
+	}
+
+	/**
+	 * Handles the Forge configuration changed event.
+	 *
+	 * @param event The event.
+	 */
+	@SubscribeEvent
+	public static void onConfigChanged(final ConfigChangedEvent.OnConfigChangedEvent event) {
+		if(event.getModID().equals(MODID)) {
+			ConfigManager.sync(MODID, Config.Type.INSTANCE);
+		}
 	}
 
 	/**

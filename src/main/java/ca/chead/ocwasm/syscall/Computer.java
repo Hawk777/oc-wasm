@@ -545,6 +545,36 @@ public final class Computer {
 	}
 
 	/**
+	 * Adds a message to the Minecraft debug output log.
+	 *
+	 * In the case of a multiplayer game, the message is added to the debug log
+	 * on the server.
+	 *
+	 * By default, this syscall is disabled, to prevent a multiplayer client
+	 * from filling up the server’s log file. It must be enabled in config.
+	 * When disabled, the syscall still exists (so that software can use the
+	 * syscall regardless of environment), but silently does nothing.
+	 *
+	 * @param messagePointer A pointer to the string to log.
+	 * @param messageLength The length of the message.
+	 * @return 0 on success, or one of {@link ErrorCode#MEMORY_FAULT} or {@link
+	 * ErrorCode#STRING_DECODE}.
+	 * @throws WrappedException If the implementation fails.
+	 */
+	@Syscall
+	public int debug(final int messagePointer, final int messageLength) throws WrappedException {
+		if(OCWasm.OCWasmConfig.enableDebug) {
+			return SyscallWrapper.wrap(() -> {
+				final String message = WasmString.toJava(memory, messagePointer, messageLength);
+				OCWasm.getLogger().debug("computer.debug: {}", message);
+				return 0;
+			});
+		} else {
+			return 0;
+		}
+	}
+
+	/**
 	 * Checks whether the computer has a popped signal.
 	 *
 	 * @return {@code true} if there is a signal stashed that has been popped
