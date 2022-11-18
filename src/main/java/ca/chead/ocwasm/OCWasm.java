@@ -10,7 +10,6 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.Mod.EventHandler;
 import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
@@ -181,7 +180,7 @@ public final class OCWasm {
 	 *
 	 * @param event The event.
 	 */
-	@EventHandler
+	@Mod.EventHandler
 	public static void preInit(final FMLPreInitializationEvent event) {
 		logger = event.getModLog();
 		SyntheticFuncBuilderPatcher.patch();
@@ -192,7 +191,7 @@ public final class OCWasm {
 	 *
 	 * @param event The event.
 	 */
-	@EventHandler
+	@Mod.EventHandler
 	public static void postInit(final FMLPostInitializationEvent event) {
 		// Register the architecture.
 		li.cil.oc.api.Machine.add(CPU.class);
@@ -219,7 +218,7 @@ public final class OCWasm {
 	 *
 	 * @param event The event.
 	 */
-	@EventHandler
+	@Mod.EventHandler
 	public static void serverStarting(final FMLServerStartingEvent event) {
 		final ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
 			@Override
@@ -239,7 +238,7 @@ public final class OCWasm {
 	 *
 	 * @param event The event.
 	 */
-	@EventHandler
+	@Mod.EventHandler
 	public static void serverStopped(final FMLServerStoppedEvent event) {
 		backgroundExecutor.shutdown();
 		try {
