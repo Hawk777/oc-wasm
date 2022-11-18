@@ -274,7 +274,16 @@ public final class CBOR {
 			return dest;
 		} else if(item instanceof co.nstant.in.cbor.model.Number) {
 			try {
-				return ((co.nstant.in.cbor.model.Number) item).getValue().intValueExact();
+				final long l = ((co.nstant.in.cbor.model.Number) item).getValue().longValueExact();
+				final int i = (int) l;
+				if(i == l) {
+					// The value is small enough to fit in an int, so return it
+					// that way.
+					return i;
+				} else {
+					// The value is too big for an int, so return it as a long.
+					return l;
+				}
 			} catch(final ArithmeticException exp) {
 				throw new CBORDecodeException();
 			}
