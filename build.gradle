@@ -36,7 +36,6 @@ apply plugin: 'net.minecraftforge.gradle'
 version = '1.12.2-0.4.0'
 group = 'ca.chead.oc-wasm'
 archivesBaseName = 'oc-wasm'
-sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8'
 
 // Arrange to fill in the metadata in mcmod.info automatically.
 processResources {
@@ -70,6 +69,14 @@ dependencies {
 	dependenciesToShadow(group: 'org.ow2.asm', name: 'asm-util', version: '9.1')
 	dependenciesToShadow(group: 'co.nstant.in', name: 'cbor', version: '0.9')
 	spotbugs(group: 'com.github.spotbugs', name: 'spotbugs', version: '4.2.3')
+}
+
+// Always compile with Java 1.8; newer versions change the ByteBuffer APIs in
+// an incompatible way.
+java {
+	toolchain {
+		languageVersion.set(JavaLanguageVersion.of(8))
+	}
 }
 
 // Run the Java compiler with -Xlint.
