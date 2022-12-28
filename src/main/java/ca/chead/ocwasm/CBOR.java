@@ -32,6 +32,11 @@ import li.cil.oc.api.machine.Value;
  */
 public final class CBOR {
 	/**
+	 * The tag for a CBOR binary-encoded UUID.
+	 */
+	private static final long UUID_TAG = 37;
+
+	/**
 	 * The tag for a CBOR Identifier.
 	 */
 	private static final long IDENTIFIER_TAG = 39;
@@ -233,6 +238,15 @@ public final class CBOR {
 						return ref.get();
 					}
 				} else if(item instanceof ByteString) {
+					return toJavaUUID((ByteString) item);
+				} else {
+					throw new CBORDecodeException();
+				}
+			} else if(tag.getValue() == UUID_TAG) {
+				if(tag.hasTag()) {
+					throw new CBORDecodeException();
+				}
+				if(item instanceof ByteString) {
 					return toJavaUUID((ByteString) item);
 				} else {
 					throw new CBORDecodeException();
