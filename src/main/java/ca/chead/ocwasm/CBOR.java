@@ -233,14 +233,7 @@ public final class CBOR {
 						return ref.get();
 					}
 				} else if(item instanceof ByteString) {
-					final ByteBuffer bb = ByteBuffer.wrap(((ByteString) item).getBytes());
-					if(bb.remaining() == MemoryUtils.UUID_BYTES) {
-						final long msw = bb.getLong();
-						final long lsw = bb.getLong();
-						return new UUID(msw, lsw).toString();
-					} else {
-						throw new CBORDecodeException();
-					}
+					return toJavaUUID((ByteString) item);
 				} else {
 					throw new CBORDecodeException();
 				}
@@ -305,6 +298,24 @@ public final class CBOR {
 			return ((UnicodeString) item).getString();
 		}
 		throw new CBORDecodeException();
+	}
+
+	/**
+	 * Converts a CBOR byte string into a UUID.
+	 *
+	 * @param item The item to convert.
+	 * @return The decoded UUID, in string form.
+	 * @throws CBORDecodeException If the item is the wrong length.
+	 */
+	private static String toJavaUUID(final ByteString item) throws CBORDecodeException {
+		final ByteBuffer bb = ByteBuffer.wrap(item.getBytes());
+		if(bb.remaining() == MemoryUtils.UUID_BYTES) {
+			final long msw = bb.getLong();
+			final long lsw = bb.getLong();
+			return new UUID(msw, lsw).toString();
+		} else {
+			throw new CBORDecodeException();
+		}
 	}
 
 	private CBOR() {
