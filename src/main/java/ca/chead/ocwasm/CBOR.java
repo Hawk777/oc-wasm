@@ -29,6 +29,70 @@ import li.cil.oc.api.machine.Value;
 
 /**
  * Handles encoding and decoding CBOR data items.
+ * <p>
+ * When encoding Java objects as CBOR, the following rules apply:
+ * <ul>
+ * <li>{@code null} is encoded as a CBOR simple value null (major 7, value
+ * 22).</li>
+ * <li>A {@link Boolean} is encoded as a CBOR simple value false (major 7,
+ * value 20) or true (major 7, value 21).</li>
+ * <li>A {@link Byte}, {@link Short}, {@link Integer}, or {@link Long} is
+ * encoded as a CBOR integer (major 0 or 1).</li>
+ * <li>A {@link Float} is encoded as a CBOR IEEE 754 single-precision value
+ * (major 7, value 26).</li>
+ * <li>A {@link Double} is encoded as a CBOR IEEE 754 double-precision value
+ * (major 7, value 27).</li>
+ * <li>An OpenComputers opaque {@link Value} (such as an open file handle) is
+ * encoded as a CBOR unsigned integer (major 0) encoding a freshly allocated
+ * descriptor number, tagged with the Identifier tag (39).</li>
+ * <li>A {@link Character} or {@link String} is encoded as a CBOR text string
+ * (major 3).</li>
+ * <li>An array of {@code byte} is encoded as a CBOR byte string (major
+ * 2).</li>
+ * <li>An array of any element type other than {@code byte}, or any object
+ * implementing {@link Iterable}, is encoded as a CBOR array (major 4) in
+ * definite-length form containing the elements encoded recursively according
+ * to these rules.</li>
+ * <li>Any object implementing {@link java.util.Map} or {@link
+ * scala.collection.Map} is encoded as a CBOR map (major 5) in definite-length
+ * form containing the keys and values encoded recursively according to these
+ * rules.</li>
+ * <li>Any other object cannot be encoded.</li>
+ * </ul>
+ * <p>
+ * When decoding CBOR to Java objects, the following rules apply:
+ * <ul>
+ * <li>A data item tagged with the UUID tag (37) must be of type byte string of
+ * length 16, and is converted to the {@link String} form of the represented
+ * UUID.</li>
+ * <li>A data item tagged with the Identifier tag (39) must be of type unsigned
+ * integer (major 0) and is decoded as an OpenComputers opaque {@link Value}
+ * (such as an open file handle) by interpreting it as a descriptor number.
+ * (Deprecated: for backwards compatibility, a byte string encoding a UUID may
+ * also be tagged with tag 39 instead of tag 37)</li>
+ * <li>Any other tag, or a tag in any other location, is invalid.</li>
+ * <li>A CBOR integer (major 0 or 1) is decoded to an {@link Integer} if the
+ * value fits within that data type’s range, otherwise to a {@link Long}.</li>
+ * <li>A CBOR byte string (major 2) is decoded to an array of {@code
+ * byte}.</li>
+ * <li>A CBOR text string (major 3) is decoded to a {@link String}.</li>
+ * <li>A CBOR array (major 4) is decoded to an array of {@link Object}
+ * containing the elements decoded recursively according to these rules.</li>
+ * <li>A CBOR map (major 5) is decoded to a {@link HashMap} containing the keys
+ * and values recursively decoded according to these rules, with the additional
+ * restriction that keys may only be data items that decode to {@link String},
+ * {@link Integer}, {@link Long}, or {@link Boolean}.</li>
+ * <li>A CBOR false (major 7, value 20) is decoded to {@link
+ * Boolean#FALSE}.</li>
+ * <li>A CBOR true (major 7, value 21) is decoded to {@link Boolean#TRUE}.</li>
+ * <li>A CBOR null (major 7, value 22) and undefined (major 7, value 23) are
+ * decoded to {@code null}.</li>
+ * <li>A CBOR half-precision (major 7, value 25) or single-precision (major 7,
+ * value 26) IEEE 754 value is decoded to a {@link Float}.</li>
+ * <li>A CBOR double-precision IEEE 754 value (major 7, value 27) is decoded to
+ * a {@link Double}.</li>
+ * <li>Any other data item is invalid.</li>
+ * </ul>
  */
 public final class CBOR {
 	/**
