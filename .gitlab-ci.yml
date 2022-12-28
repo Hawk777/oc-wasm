@@ -1,7 +1,7 @@
 "Compile":
   stage: build
   image:
-    name: "gradle:7-jdk8"
+    name: "gradle:7.5-jdk8"
   script:
     - gradle --no-daemon --gradle-user-home gradle-home reobfShadowJar
     - gradle --no-daemon --gradle-user-home gradle-home javadoc || true
@@ -26,7 +26,7 @@
   stage: test
   needs: ["Compile"]
   image:
-    name: "gradle:7-jdk8"
+    name: "gradle:7.5-jdk8"
   cache:
     paths:
       - gradle-home
@@ -45,7 +45,7 @@
   dependencies:
     - "Compile"
   image:
-    name: "gradle:7-jdk8"
+    name: "gradle:7.5-jdk8"
   script:
     - mv build/docs/javadoc public
   artifacts:
