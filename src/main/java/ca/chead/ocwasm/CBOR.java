@@ -304,8 +304,6 @@ public final class CBOR {
 				case TRUE: return true;
 				case NULL: return null;
 				case UNDEFINED: return null;
-				case RESERVED: return null;
-				case UNALLOCATED: return null;
 				default: throw new RuntimeException("Impossible simple CBOR value type " + ((SimpleValue) item).getSimpleValueType());
 			}
 		} else if(item instanceof UnicodeString) {
