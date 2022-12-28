@@ -134,8 +134,14 @@ public final class Execute {
 
 	/**
 	 * Executes the Wasm binary contained in the execution buffer.
-	 *
+	 * <p>
 	 * This syscall never returns.
+	 * <p>
+	 * If a component call is pending and has not yet been performed, or if a
+	 * component call has been performed and its return value has not yet been
+	 * fetched, it is cancelled as if by {@link Component#invokeCancel}. Then,
+	 * all {@link ca.chead.ocwasm.DescriptorTable descriptors} are closed
+	 * before execution of the new binary begins.
 	 *
 	 * @throws ExecuteBinaryException Always.
 	 */
