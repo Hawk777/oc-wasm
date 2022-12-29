@@ -10,19 +10,7 @@ import java.util.Objects;
  * The syscalls available for import into a Wasm module in the {@code
  * descriptor} component.
  *
- * Certain operations may return, and others may accept, what OC-Wasm terms
- * “opaque values”. In technical terms, these are instances of {@link
- * li.cil.oc.api.machine.Value}. Examples of opaque values are file handles
- * returned by the filesystem component, craftables or crafting status objects
- * returned by an adapter connected to an Applied Energistics network, or
- * sockets returned by the Internet card. Opaque values cannot be directly
- * stored in linear memory in the Wasm module instance. Instead, OC-Wasm
- * maintains a table of opaque values, keyed by small nonnegative 32-bit
- * integers referred to as <em>descriptors</em>. When a descriptor is passed
- * via CBOR, its integer data item is tagged with tag 39 (“identifier”). The
- * Wasm module instance is responsible for managing the lifetime of its
- * descriptors, closing each one when it is no longer needed by calling {@link
- * #close}.
+ * See {@link DescriptorTable} for conceptual information about descriptors.
  */
 public final class Descriptor {
 	/**

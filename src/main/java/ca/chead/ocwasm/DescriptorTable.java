@@ -11,6 +11,54 @@ import net.minecraft.nbt.NBTTagCompound;
 /**
  * A table mapping between integer descriptors and opaque values, with the
  * ability to allocate new descriptors and close existing descriptors.
+ * <p>
+ * Certain values passed to and returned from component calls are not
+ * representable as simple data items or structures. An example of this is an
+ * open file handle, as returned by a {@code filesystem} component’s {@code
+ * open} method. More generally, these are objects that implement the {@link
+ * Value} interface. These objects know how to save and restore themselves when
+ * chunks (or an entire game) are unloaded and loaded, and must be cleaned up
+ * once they are no longer needed.
+ * <p>
+ * In Lua, {@link Value}s are represented as objects of type full userdata;
+ * that is, they appear as tables for which {@code getmetatable} returns the
+ * string {@code "userdata"}. Because Lua is garbage collected, they can be
+ * copied around arbitrarily and are automatically cleaned up once user code no
+ * longer holds any references to them.
+ * <p>
+ * WebAssembly does not have a similar concept of “handle” or “foreign object”.
+ * Therefore, in OC-Wasm, {@link Value}s are represented as small nonnegative
+ * integers called <em>descriptors</em>, similar to UNIX file descriptors.
+ * Whenever a component call returns a {@link Value}, a nonexistent descriptor
+ * is selected, mapped to the {@link Value}, and returned. A descriptor can be
+ * encoded when making a component call in order to pass the mapped {@link
+ * Value} to the relevant method. The descriptor can also be passed to certain
+ * of the {@link ca.chead.ocwasm.syscall.Component Component} system calls to
+ * invoke methods directly on the {@link Value} itself, if it has any.
+ * <p>
+ * Because WebAssembly is not garbage collected, descriptors’ lifetimes must be
+ * handled explicitly by the application. The {@link
+ * ca.chead.ocwasm.syscall.Descriptor#dup Descriptor.dup} system call can be
+ * used to create a second descriptor referring to the same {@link Value}. The
+ * {@link ca.chead.ocwasm.syscall.Descriptor#close Descriptor.close} system
+ * call can be used to close a descriptor. Once all descriptors referring to a
+ * {@link Value} are closed, the {@link Value} is cleaned up. <p> Note that,
+ * other than rebooting the computer or executing another program, {@link
+ * ca.chead.ocwasm.syscall.Descriptor#close Descriptor.close} is the
+ * <em>only</em> way to close a descriptor. Certain component calls have
+ * close-like semantics (for example, the {@code filesystem} component’s {@code
+ * close} method), but these do <em>not</em> close the descriptor. Generally,
+ * such an API-specific method should be called first (to obtain any error
+ * information which might be reported that way), then {@link
+ * ca.chead.ocwasm.syscall.Descriptor#close Descriptor.close} should be called
+ * last to actually release the descriptor. This is because, in the general
+ * case, there is no systematic way to indicate whether a particular component
+ * call closes, or merely uses, a {@link Value}; therefore, OC-Wasm chooses the
+ * conservative option of requiring the application to always close descriptors
+ * explicitly.
+ * <p>
+ * {@link CBOR} details how exactly a descriptor is encoded in CBOR passed to
+ * or returned from a component call.
  */
 public final class DescriptorTable {
 	/**

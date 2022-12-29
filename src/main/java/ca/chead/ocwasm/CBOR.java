@@ -93,6 +93,9 @@ import li.cil.oc.api.machine.Value;
  * a {@link Double}.</li>
  * <li>Any other data item is invalid.</li>
  * </ul>
+ * <p>
+ * {@link DescriptorTable} further details the handling of {@link Value}
+ * objects and descriptors.
  */
 public final class CBOR {
 	/**
