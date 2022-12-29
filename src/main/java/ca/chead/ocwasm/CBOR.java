@@ -81,7 +81,8 @@ import li.cil.oc.api.machine.Value;
  * <li>A CBOR map (major 5) is decoded to a {@link HashMap} containing the keys
  * and values recursively decoded according to these rules, with the additional
  * restriction that keys may only be data items that decode to {@link String},
- * {@link Integer}, {@link Long}, or {@link Boolean}.</li>
+ * {@link Integer}, {@link Long}, {@link Boolean}, {@link Float}, or {@link
+ * Double}.</li>
  * <li>A CBOR false (major 7, value 20) is decoded to {@link
  * Boolean#FALSE}.</li>
  * <li>A CBOR true (major 7, value 21) is decoded to {@link Boolean#TRUE}.</li>
