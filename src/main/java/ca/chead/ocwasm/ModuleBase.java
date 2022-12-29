@@ -106,8 +106,8 @@ public abstract class ModuleBase {
 	 * ca.chead.ocwasm.syscall.Computer#worldTime} to calculate sleep periods,
 	 * depending on how it wishes to handle players using beds to skip time.
 	 *
-	 * @param callCompleted {@code true} if a method call was previously
-	 * started but not finished and has now finished.
+	 * @param callCompleted 1 if a method call was previously started but not
+	 * finished and has now finished, or 0 if not.
 	 * @return The number of ticks to sleep before the next call.
 	 * @throws ExecutionException If a stack overflow occurs, the computer’s
 	 * timeslice expires, or the module requests to shut down the computer.
