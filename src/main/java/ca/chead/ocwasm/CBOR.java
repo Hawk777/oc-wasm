@@ -78,12 +78,13 @@ import li.cil.oc.api.machine.Value;
  * byte} or a {@link String} whose contents are taken from an arbitrary region
  * of linear memory. The first element must be an unsigned integer whose value
  * is either 2 or 3 indicating the major type to decode. The second element
- * must be an unsigned integer whose value is interpreted as a {@link
- * ca.chead.ocwasm.syscall pointer}. The third element must be an unsigned
- * integer, or a negative integer in the case of major type 3, whose value is
- * interpreted as a {@link ca.chead.ocwasm.syscall length} (negative values for
- * major type 3 cause a NUL-terminator search to occur, as per the rules for
- * {@link ca.chead.ocwasm.syscall strings}).</li>
+ * must be an unsigned integer whose value is interpreted as a <a
+ * href="syscall/package-summary.html">pointer</a>. The third element must be
+ * an unsigned integer, or a negative integer in the case of major type 3,
+ * whose value is interpreted as a <a
+ * href="syscall/package-summary.html">length</a> (negative values for major
+ * type 3 cause a NUL-terminator search to occur, as per the rules for <a
+ * href="syscall/package-summary.html">strings</a>).</li>
  * <li>Any other tag, or a tag in any other location, is invalid.</li>
  * <li>A CBOR integer (major 0 or 1) is decoded to an {@link Integer} if the
  * value fits within that data type’s range, otherwise to a {@link Long}.</li>
