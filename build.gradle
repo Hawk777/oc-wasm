@@ -86,7 +86,7 @@ compileJava {
 
 // Set options for Javadoc.
 javadoc {
-	options.overview = "src/main/java/overview.html"
+	options.overview = 'src/main/java/overview.html'
 }
 
 // Configure SpotBugs.
