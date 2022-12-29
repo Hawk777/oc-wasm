@@ -56,10 +56,10 @@ import li.cil.oc.api.machine.Value;
  * implementing {@link Iterable}, is encoded as a CBOR array (major 4) in
  * definite-length form containing the elements encoded recursively according
  * to these rules.</li>
- * <li>Any object implementing {@link java.util.Map} or {@link
- * scala.collection.Map} is encoded as a CBOR map (major 5) in definite-length
- * form containing the keys and values encoded recursively according to these
- * rules.</li>
+ * <li>Any object implementing {@link java.util.Map java.util.Map} or {@link
+ * scala.collection.Map scala.collection.Map} is encoded as a CBOR map (major
+ * 5) in definite-length form containing the keys and values encoded
+ * recursively according to these rules.</li>
  * <li>Any other object cannot be encoded.</li>
  * </ul>
  * <p>
