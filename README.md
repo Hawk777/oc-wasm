@@ -106,7 +106,4 @@ are listed in the [syscall
 package](https://hawk777.gitlab.io/oc-wasm/ca/chead/ocwasm/syscall/package-summary.html);
 each class in that package that is documented as such becomes a WebAssembly
 “module”, and each method tagged with the `@Syscall` annotation within such a
-class becomes an importable function within that module. The [ModuleBase
-class’s
-documentation](https://hawk777.gitlab.io/oc-wasm/ca/chead/ocwasm/ModuleBase.html)
-also contains useful general information.
+class becomes an importable function within that module.
