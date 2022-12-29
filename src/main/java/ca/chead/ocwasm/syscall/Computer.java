@@ -16,6 +16,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 import li.cil.oc.api.machine.Machine;
@@ -254,7 +255,7 @@ public final class Computer {
 	@Syscall
 	public int pushSignal(final int signalPointer) throws WrappedException {
 		return SyscallWrapper.wrap(() -> {
-			final Object[] signal = CBOR.toJavaArray(MemoryUtils.region(memory, signalPointer), descriptors, (desc) -> { });
+			final Object[] signal = CBOR.toJavaArray(MemoryUtils.region(memory, signalPointer), descriptors, (desc) -> { }, Optional.of(memory));
 			if(signal.length == 0 || !(signal[0] instanceof String)) {
 				throw new CBORDecodeException();
 			}

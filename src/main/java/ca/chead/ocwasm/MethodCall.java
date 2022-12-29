@@ -9,6 +9,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import li.cil.oc.api.machine.Callback;
@@ -318,11 +319,13 @@ public abstract class MethodCall implements AutoCloseable {
 		{
 			final byte[] bytes = root.getByteArray(NBT_PARAMETERS);
 			try {
-				parameters = CBOR.toJavaArray(ByteBuffer.wrap(bytes), descriptors, descriptorsInParameters::add);
+				parameters = CBOR.toJavaArray(ByteBuffer.wrap(bytes), descriptors, descriptorsInParameters::add, Optional.empty());
 			} catch(final CBORDecodeException exp) {
 				throw new RuntimeException("Save data is corrupt: MethodCall contains invalid CBOR", exp);
 			} catch(final BadDescriptorException exp) {
 				throw new RuntimeException("Save data is corrupt: MethodCall refers to closed descriptor", exp);
+			} catch(final MemoryFaultException exp) {
+				throw new RuntimeException("Logic error: CBOR decode without reference to linear memory cannot throw MemoryFaultException", exp);
 			}
 		}
 

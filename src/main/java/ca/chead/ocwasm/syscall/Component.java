@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import li.cil.oc.api.machine.Callback;
@@ -160,7 +161,7 @@ public final class Component {
 		MethodCallParameters(final int pointer) throws MemoryFaultException, CBORDecodeException, BadDescriptorException {
 			if(pointer != 0) {
 				final ArrayList<Integer> paramDescriptors = new ArrayList<Integer>();
-				params = CBOR.toJavaArray(MemoryUtils.region(memory, pointer), descriptors, paramDescriptors::add);
+				params = CBOR.toJavaArray(MemoryUtils.region(memory, pointer), descriptors, paramDescriptors::add, Optional.of(memory));
 				final ArrayList<ValueReference> v = new ArrayList<ValueReference>(paramDescriptors.size());
 				for(final int paramDescriptor : paramDescriptors) {
 					// This cannot throw BadDescriptorException because, if it

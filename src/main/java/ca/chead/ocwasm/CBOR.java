@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.IntConsumer;
 import li.cil.oc.api.machine.Value;
@@ -224,15 +225,22 @@ public final class CBOR {
 	 * to opaque values.
 	 * @param descriptorListener A listener which is invoked and passed every
 	 * descriptor encountered during conversion.
+	 * @param memory The linear memory from which to resolve external
+	 * references, if external references should be resolved.
 	 * @return The object.
 	 * @throws CBORDecodeException If the data in {@code source} is not a valid
-	 * CBOR data item or the item or one of its nested items is of an
+	 * CBOR data item (including if it is an external reference and {@code
+	 * memory} is absent) or the item or one of its nested items is of an
 	 * unsupported type, or if it is valid but is not an array.
 	 * @throws BadDescriptorException If the data contains a reference to a
 	 * descriptor, but the descriptor does not exist in the descriptor table.
+	 * @throws MemoryFaultException If the data contains an external reference
+	 * and the external reference pointer is null or the pointer and length
+	 * point outside the memory area. This exception is impossible if {@code
+	 * memory} is absent.
 	 */
-	public static Object[] toJavaArray(final ByteBuffer source, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) throws CBORDecodeException, BadDescriptorException {
-		final Object ret = toJavaObject(source, descriptorTable, descriptorListener);
+	public static Object[] toJavaArray(final ByteBuffer source, final DescriptorTable descriptorTable, final IntConsumer descriptorListener, final Optional<ByteBuffer> memory) throws CBORDecodeException, BadDescriptorException, MemoryFaultException {
+		final Object ret = toJavaObject(source, descriptorTable, descriptorListener, memory);
 		if(ret instanceof Object[]) {
 			return (Object[]) ret;
 		} else {
@@ -248,17 +256,25 @@ public final class CBOR {
 	 * to opaque values.
 	 * @param descriptorListener A listener which is invoked and passed every
 	 * descriptor encountered during conversion.
+	 * @param memory The linear memory from which to resolve external
+	 * references, if external references should be resolved.
 	 * @return The object.
 	 * @throws CBORDecodeException If the data in {@code source} is not a valid
-	 * CBOR data item or the item or one of its nested items is of an
+	 * CBOR data item (including if it is an external reference and {@code
+	 * memory} is absent) or the item or one of its nested items is of an
 	 * unsupported type.
 	 * @throws BadDescriptorException If the data contains a reference to a
 	 * descriptor, but the descriptor does not exist in the descriptor table.
+	 * @throws MemoryFaultException If the data contains an external reference
+	 * and the external reference pointer is null or the pointer and length
+	 * point outside the memory area. This exception is impossible if {@code
+	 * memory} is absent.
 	 */
-	public static Object toJavaObject(final ByteBuffer source, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) throws CBORDecodeException, BadDescriptorException {
+	public static Object toJavaObject(final ByteBuffer source, final DescriptorTable descriptorTable, final IntConsumer descriptorListener, final Optional<ByteBuffer> memory) throws CBORDecodeException, BadDescriptorException, MemoryFaultException {
 		Objects.requireNonNull(source);
 		Objects.requireNonNull(descriptorTable);
 		Objects.requireNonNull(descriptorListener);
+		Objects.requireNonNull(memory);
 
 		if(source.remaining() == 0) {
 			return null;
@@ -270,7 +286,7 @@ public final class CBOR {
 		} catch(final CborException exp) {
 			throw new CBORDecodeException();
 		}
-		return toJavaObject(item, descriptorTable, descriptorListener);
+		return toJavaObject(item, descriptorTable, descriptorListener, memory);
 	}
 
 	/**
@@ -281,12 +297,19 @@ public final class CBOR {
 	 * to opaque values.
 	 * @param descriptorListener A listener which is invoked and passed every
 	 * descriptor encountered during conversion.
+	 * @param memory The linear memory from which to resolve external
+	 * references, if external references should be resolved.
 	 * @return A Java object corresponding to the given CBOR data item.
-	 * @throws CBORDecodeException If the item is not of a convertible type.
+	 * @throws CBORDecodeException If the item is not of a convertible type
+	 * (including if it is an external reference and {@code memory} is absent).
 	 * @throws BadDescriptorException If the data contains a reference to a
 	 * descriptor, but the descriptor does not exist in the descriptor table.
+	 * @throws MemoryFaultException If the data contains an external reference
+	 * and the external reference pointer is null or the pointer and length
+	 * point outside the memory area. This exception is impossible if {@code
+	 * memory} is absent.
 	 */
-	private static Object toJavaObject(final DataItem item, final DescriptorTable descriptorTable, final IntConsumer descriptorListener) throws CBORDecodeException, BadDescriptorException {
+	private static Object toJavaObject(final DataItem item, final DescriptorTable descriptorTable, final IntConsumer descriptorListener, final Optional<ByteBuffer> memory) throws CBORDecodeException, BadDescriptorException, MemoryFaultException {
 		final Tag tag = item.getTag();
 		if(tag != null) {
 			if(tag.getValue() == IDENTIFIER_TAG) {
@@ -326,7 +349,7 @@ public final class CBOR {
 			final List<DataItem> items = ((Array) item).getDataItems();
 			final Object[] objects = new Object[items.size()];
 			for(int i = 0; i != objects.length; ++i) {
-				objects[i] = toJavaObject(items.get(i), descriptorTable, descriptorListener);
+				objects[i] = toJavaObject(items.get(i), descriptorTable, descriptorListener, memory);
 			}
 			return objects;
 		} else if(item instanceof ByteString) {
@@ -337,9 +360,9 @@ public final class CBOR {
 			final Iterator<DataItem> keyIter = src.getKeys().iterator();
 			final Iterator<DataItem> valueIter = src.getValues().iterator();
 			while(keyIter.hasNext()) {
-				final Object key = toJavaObject(keyIter.next(), descriptorTable, descriptorListener);
+				final Object key = toJavaObject(keyIter.next(), descriptorTable, descriptorListener, memory);
 				if(key instanceof String || key instanceof java.lang.Number || key instanceof Boolean) {
-					final Object value = toJavaObject(valueIter.next(), descriptorTable, descriptorListener);
+					final Object value = toJavaObject(valueIter.next(), descriptorTable, descriptorListener, memory);
 					dest.put(key, value);
 				} else {
 					// Map keys must only be strings, numbers, or booleans.
