@@ -86,6 +86,7 @@ compileJava {
 
 // Set options for Javadoc.
 javadoc {
+	options.docTitle = options.windowTitle = "OC-Wasm ${version}"
 	options.overview = 'src/main/java/overview.html'
 }
 
