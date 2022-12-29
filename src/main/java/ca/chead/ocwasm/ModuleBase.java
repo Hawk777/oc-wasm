@@ -84,7 +84,7 @@ public abstract class ModuleBase {
 
 	/**
 	 * Runs the module.
-	 *
+	 * <p>
 	 * Normally this is called once at startup and then again each time the
 	 * previous call’s requested sleep time completes. However, it may be
 	 * called earlier than the requested sleep time under three conditions:
