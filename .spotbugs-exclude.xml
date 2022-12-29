@@ -15,13 +15,18 @@
 	</And>
 
 	<!--
-	The enableDebug field in OCWasmConfig is public static but not final. It
-	must not be final because it can be changed by the Forge config framework
-	when the user edits config settings.
+	The enableDebug and enableSyscallExceptionTraceDump fields in OCWasmConfig
+	are public static but not final. They must not be final because they can be
+	changed by the Forge config framework when the user edits config settings.
 	-->
 	<And>
 		<Bug pattern="MS_SHOULD_BE_FINAL"/>
 		<Class name="ca.chead.ocwasm.OCWasm$OCWasmConfig"/>
 		<Field name="enableDebug"/>
+	</And>
+	<And>
+		<Bug pattern="MS_SHOULD_BE_FINAL"/>
+		<Class name="ca.chead.ocwasm.OCWasm$OCWasmConfig"/>
+		<Field name="enableSyscallExceptionTraceDump"/>
 	</And>
 </FindBugsFilter>

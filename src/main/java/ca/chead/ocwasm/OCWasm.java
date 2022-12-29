@@ -50,6 +50,14 @@ public final class OCWasm {
 		@Config.Comment({"Whether the computer.debug syscall writes to the Minecraft debug log (otherwise, debug output is discarded)."})
 		@Config.Name("Enable Debug")
 		public static boolean enableDebug = false;
+
+		/**
+		 * Whether a failed syscall writes an exception stack trace to the
+		 * Minecraft log.
+		 */
+		@Config.Comment({"Whether (most) failed syscalls write exception stack traces to the Minecraft debug log."})
+		@Config.Name("Enable Syscall Exception Trace Dump")
+		public static boolean enableSyscallExceptionTraceDump = false;
 	}
 
 	/**

@@ -1,5 +1,6 @@
 package ca.chead.ocwasm.syscall;
 
+import ca.chead.ocwasm.OCWasm;
 import ca.chead.ocwasm.SyscallErrorException;
 import ca.chead.ocwasm.WrappedException;
 
@@ -35,6 +36,9 @@ public final class SyscallWrapper {
 		try {
 			return f.run();
 		} catch(final SyscallErrorException exp) {
+			if(OCWasm.OCWasmConfig.enableSyscallExceptionTraceDump) {
+				OCWasm.getLogger().debug("syscall failed", exp);
+			}
 			return exp.errorCode().asNegative();
 		} catch(final RuntimeException exp) {
 			throw new WrappedException(exp);
