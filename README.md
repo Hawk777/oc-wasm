@@ -70,9 +70,17 @@ OpenComputers (e.g. via the adapter block); however, community contributions
 content from mods) are very welcome!
 
 
+Working in Zig
+===============
+
+AmandaC from the OpenComputers community has started early work on [a
+repository with a Zig library and a few small examples for
+OC-Wasm](https://git.camnet.site/amandac/ocwasm-zig).
+
+
 Technical Details
 =================
 
-If you want to work in a language other than Rust, or you’re just curious how
-things work under the hood, please have a look at [the OC-Wasm
-Javadoc](https://hawk777.gitlab.io/oc-wasm/).
+If you want to work in a language which doesn’t already have support libraries,
+or you’re just curious how things work under the hood, please have a look at
+[the OC-Wasm Javadoc](https://hawk777.gitlab.io/oc-wasm/).
