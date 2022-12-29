@@ -1,0 +1,36 @@
+<html>
+<body>
+Each CPU configured to the WebAssembly architecture runs one thread in one
+WebAssembly module instance at a time. Multithreading is not supported, nor is
+any kind of linking between multiple modules.
+<p>
+A WebAssembly module to be executed must export a symbol called
+<code>run</code>, which must be a function. The definition of this function is
+given in {@link ca.chead.ocwasm.ModuleBase#run}. The <code>run</code> function
+is not allowed to run indefinitely! Just like in Lua, if a program tries to run
+for longer than the <code>timeout</code> value in the <code>computer</code>
+section of the OpenComputers configuration file, it will crash. Thus, an
+OC-Wasm program needs to do a little bit of work on each call to
+<code>run</code>, then save its progress (in a combination of mutable global
+variables and linear memory) and return, resuming execution later. Note that if
+a module defines a WebAssembly “start function”, the timeout value also applies
+to that function, though there is no way to resume its execution later—once the
+start function returns, the <code>run</code> function will be invoked
+immediately afterwards. While it is possible to handle the requirement to
+return frequently and be re-invoked by writing the whole program as a large
+state machine, it is generally much more ergonomic to choose a language that
+has some kind of coroutine support (Rust’s
+<code>async</code>/<code>await</code> and C++’s coroutines are both suitable,
+as are probably others) and let the compiler do that transformation.
+<p>
+To do anything other than simple computation—such as file I/O, printing to a
+screen, receiving <a href="https://ocdoc.cil.li/component:signals">signals</a>,
+or executing another program—you’ll need to make “system calls”. These are
+WebAssembly imports of function type, and a number of them are available. They
+are listed in the {@link ca.chead.ocwasm.syscall} package; each class in that
+package that is documented as such becomes a WebAssembly “module”, and each
+method tagged with the <code>{@link ca.chead.ocwasm.syscall.Syscall
+@Syscall}</code> annotation within such a class becomes an importable function
+within that module.
+</body>
+</html>

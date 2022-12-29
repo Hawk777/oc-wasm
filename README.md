@@ -74,36 +74,5 @@ Technical Details
 =================
 
 If you want to work in a language other than Rust, or you’re just curious how
-things work under the hood, this section is for you.
-
-Each CPU configured to the WebAssembly architecture runs one thread in one
-WebAssembly module instance at a time. Multithreading is not supported, nor is
-any kind of linking between multiple modules.
-
-A WebAssembly module to be executed must export a symbol called `run`, which
-must be a function. The definition of this function is given in [the OC-Wasm
-Javadoc](https://hawk777.gitlab.io/oc-wasm/ca/chead/ocwasm/ModuleBase.html#run-int-).
-The `run` function is not allowed to run indefinitely! Just like in Lua, if a
-program tries to run for longer than the `timeout` value in the `computer`
-section of the OpenComputers configuration file, it will crash. Thus, an
-OC-Wasm program needs to do a little bit of work on each call to `run`, then
-save its progress (in a combination of mutable global variables and linear
-memory) and return, resuming execution later. Note that if a module defines a
-WebAssembly “start function”, the timeout value also applies to that function,
-though there is no way to resume its execution later—once the start function
-returns, the `run` function will be invoked immediately afterwards. While it is
-possible to handle the requirement to return frequently and be re-invoked by
-writing the whole program as a large state machine, it is generally much more
-ergonomic to choose a language that has some kind of coroutine support (Rust’s
-`async`/`await` and C++’s coroutines are both suitable, as are probably others)
-and let the compiler do that transformation.
-
-To do anything other than simple computation—such as file I/O, printing to a
-screen, receiving [signals](https://ocdoc.cil.li/component:signals), or
-executing another program—you’ll need to make “system calls”. These are
-WebAssembly imports of function type, and a number of them are available. They
-are listed in the [syscall
-package](https://hawk777.gitlab.io/oc-wasm/ca/chead/ocwasm/syscall/package-summary.html);
-each class in that package that is documented as such becomes a WebAssembly
-“module”, and each method tagged with the `@Syscall` annotation within such a
-class becomes an importable function within that module.
+things work under the hood, please have a look at [the OC-Wasm
+Javadoc](https://hawk777.gitlab.io/oc-wasm/).

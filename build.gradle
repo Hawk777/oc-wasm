@@ -84,6 +84,11 @@ compileJava {
 	options.compilerArgs << '-Xlint'
 }
 
+// Set options for Javadoc.
+javadoc {
+	options.overview = "src/main/java/overview.html"
+}
+
 // Configure SpotBugs.
 spotbugs {
 	toolVersion = '4.7.1'
