@@ -8,6 +8,7 @@ import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.DoublePrecisionFloat;
+import co.nstant.in.cbor.model.MajorType;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.NegativeInteger;
 import co.nstant.in.cbor.model.SimpleValue;
@@ -22,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -71,6 +73,17 @@ import li.cil.oc.api.machine.Value;
  * (such as an open file handle) by interpreting it as a descriptor number.
  * (Deprecated: for backwards compatibility, a byte string encoding a UUID may
  * also be tagged with tag 39 instead of tag 37)</li>
+ * <li>A data item tagged with the External Reference tag (32,769) must be a
+ * three-element array; the reference resolves to either an array of {@code
+ * byte} or a {@link String} whose contents are taken from an arbitrary region
+ * of linear memory. The first element must be an unsigned integer whose value
+ * is either 2 or 3 indicating the major type to decode. The second element
+ * must be an unsigned integer whose value is interpreted as a {@link
+ * ca.chead.ocwasm.syscall pointer}. The third element must be an unsigned
+ * integer, or a negative integer in the case of major type 3, whose value is
+ * interpreted as a {@link ca.chead.ocwasm.syscall length} (negative values for
+ * major type 3 cause a NUL-terminator search to occur, as per the rules for
+ * {@link ca.chead.ocwasm.syscall strings}).</li>
  * <li>Any other tag, or a tag in any other location, is invalid.</li>
  * <li>A CBOR integer (major 0 or 1) is decoded to an {@link Integer} if the
  * value fits within that data type’s range, otherwise to a {@link Long}.</li>
@@ -109,6 +122,11 @@ public final class CBOR {
 	 * The tag for a CBOR Identifier.
 	 */
 	private static final long IDENTIFIER_TAG = 39;
+
+	/**
+	 * The tag for a CBOR external reference.
+	 */
+	private static final long EXTERNAL_REFERENCE_TAG = 32769;
 
 	/**
 	 * Converts a Java object into a CBOR data item.
@@ -339,6 +357,102 @@ public final class CBOR {
 				}
 				if(item instanceof ByteString) {
 					return toJavaUUID((ByteString) item);
+				} else {
+					throw new CBORDecodeException();
+				}
+			} else if(tag.getValue() == EXTERNAL_REFERENCE_TAG) {
+				if(tag.hasTag()) {
+					throw new CBORDecodeException();
+				}
+				final ByteBuffer mem;
+				try {
+					mem = memory.get();
+				} catch(final NoSuchElementException exp) {
+					throw new CBORDecodeException();
+				}
+				if(item instanceof Array) {
+					final int externalReferenceArrayLength = 3 /* major, pointer, length */;
+					final List<DataItem> items = ((Array) item).getDataItems();
+					if(items.size() != externalReferenceArrayLength) {
+						throw new CBORDecodeException();
+					}
+
+					final DataItem majorItem = items.get(0);
+					if(!(majorItem instanceof UnsignedInteger)) {
+						throw new CBORDecodeException();
+					}
+					final int majorInt;
+					try {
+						majorInt = ((UnsignedInteger) majorItem).getValue().intValueExact();
+					} catch(final ArithmeticException exp) {
+						throw new CBORDecodeException();
+					}
+					// MajorType.ofByte requires the major type to be
+					// left-shifted five places, so ensure that will not lose
+					// any bits before doing so.
+					final int majorTypeShiftBits = 5;
+					if(((majorInt << majorTypeShiftBits) >>> majorTypeShiftBits) != majorInt) {
+						throw new CBORDecodeException();
+					}
+					final MajorType major = MajorType.ofByte(majorInt << majorTypeShiftBits);
+
+					final DataItem pointerItem = items.get(1);
+					if(!(pointerItem instanceof UnsignedInteger)) {
+						throw new CBORDecodeException();
+					}
+					final int pointer;
+					try {
+						pointer = ((UnsignedInteger) pointerItem).getValue().intValueExact();
+					} catch(final ArithmeticException exp) {
+						throw new MemoryFaultException();
+					}
+
+					final DataItem lengthItem = items.get(2);
+					final int length;
+					if(lengthItem instanceof UnsignedInteger) {
+						// The length is nonnegative, so we will use it as the
+						// effective length. If it is too large to fit in an
+						// int, then it clearly exceeds the bounds of the
+						// module’s linear memory, so that’s a type of memory
+						// fault.
+						try {
+							length = ((UnsignedInteger) lengthItem).getValue().intValueExact();
+						} catch(final ArithmeticException exp) {
+							throw new MemoryFaultException();
+						}
+					} else if(lengthItem instanceof NegativeInteger) {
+						// For a Unicode string, a negative length tells us to
+						// do a NUL terminator search. For a byte string, a
+						// negative length is invalid and will be caught by
+						// MemoryUtils.region. We don’t actually care whether
+						// the value fits in an int or not! For a Unicode
+						// string, all negative integers behave the same (do a
+						// NUL terminator search), and for a byte string, all
+						// negative integers behave the same (fail). So rather
+						// than trying to extract the value as an int and
+						// dealing with too-large values, just use −1.
+						length = -1;
+					} else {
+						throw new CBORDecodeException();
+					}
+
+					switch(major) {
+						case BYTE_STRING:
+							final ByteBuffer retBuffer = MemoryUtils.region(mem, pointer, length);
+							final byte[] ret = new byte[retBuffer.remaining()];
+							retBuffer.get(ret);
+							return ret;
+
+						case UNICODE_STRING:
+							try {
+								return WasmString.toJava(mem, pointer, length);
+							} catch(final StringDecodeException exp) {
+								throw new CBORDecodeException();
+							}
+
+						default:
+							throw new CBORDecodeException();
+					}
 				} else {
 					throw new CBORDecodeException();
 				}
