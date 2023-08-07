@@ -25,7 +25,8 @@ to follow a few steps:
   loads a program from `/init.lua`). Since there’s no craftable item that comes
   with a BIOS, you’ll need to download the BIOS onto an existing computer
   (presumably running Lua, e.g. via `wget`) and flash it onto an EEPROM (e.g.
-  via `flash`).
+  via `flash`). Here's a one-liner that does that:
+  `wget https://gitlab.com/api/v4/projects/27476164/jobs/artifacts/main/raw/packed.wasm?job=Compile -O bios.wasm && flash bios.wasm OC-Wasm-BIOS`
 * Create your application. You’ll probably do this outside Minecraft, using
   regular software development tools. Once you’ve compiled a `.wasm` file, name
   it `init.wasm` and place it in the root directory of a hard drive or floppy
