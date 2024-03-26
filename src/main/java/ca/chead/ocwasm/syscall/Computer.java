@@ -236,7 +236,18 @@ public final class Computer {
 	 */
 	@Syscall
 	public int installedRAM() throws WrappedException {
-		return SyscallWrapper.wrap(() -> cpu.getInstalledRAM());
+		return SyscallWrapper.wrap(cpu::getInstalledRAM);
+	}
+
+	/**
+	 * Returns the amount of currently free memory.
+	 *
+	 * @return The amount of free memory, in bytes.
+	 * @throws WrappedException If the implementation fails.
+	 */
+	@Syscall
+	public int freeRAM() throws WrappedException {
+		return SyscallWrapper.wrap(cpu::getFreeRAM);
 	}
 
 	/**

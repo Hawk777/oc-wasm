@@ -65,6 +65,11 @@ public final class Run extends State {
 	}
 
 	@Override
+	public int freeMemory() {
+		return instance.freeMemory * ModuleBase.FREE_MEMORY_UNIT;
+	}
+
+	@Override
 	public boolean isInitialized() {
 		return true;
 	}

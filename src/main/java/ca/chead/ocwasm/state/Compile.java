@@ -53,6 +53,11 @@ public final class Compile extends State {
 	}
 
 	@Override
+	public int freeMemory() {
+		return cpu.getInstalledRAM();
+	}
+
+	@Override
 	public boolean isInitialized() {
 		// If we’re loading a snapshot, we don’t want to lose any events, to
 		// preserve the illusion of continuous execution. If we’re not loading

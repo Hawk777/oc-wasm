@@ -48,6 +48,14 @@ public abstract class State {
 	}
 
 	/**
+	 * Returns the amount of free memory. If the wasm module is not loaded yet,
+	 * will report all installed memory as free.
+	 *
+	 * @return Amount of currently free memory, in bytes.
+	 */
+	public abstract int freeMemory();
+
+	/**
 	 * Returns whether to deliver {@code component_added} events and whether to
 	 * place a budget on direct component calls in this state.
 	 *
