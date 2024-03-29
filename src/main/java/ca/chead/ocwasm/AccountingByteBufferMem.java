@@ -71,7 +71,7 @@ public final class AccountingByteBufferMem extends ByteBufferMem {
 
 		// If the new size would leave us with negative free memory for the
 		// stack, fail.
-		final long deltaWords = deltaPages / ModuleBase.FREE_MEMORY_UNIT;
+		final long deltaWords = deltaBytes / ModuleBase.FREE_MEMORY_UNIT;
 		if(deltaWords > instance.freeMemory) {
 			return -1;
 		}
