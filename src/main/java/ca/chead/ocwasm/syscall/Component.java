@@ -521,6 +521,9 @@ public final class Component {
 			final li.cil.oc.api.network.Component component = getComponent(addressPointer);
 			final Map<String, Callback> snapshot = machine.methods(component.host());
 			methods = snapshot.entrySet().stream().map(MethodInfo::new).collect(Collectors.toCollection(() -> new ArrayList<MethodInfo>(snapshot.size())));
+			if (methods.isEmpty()) {
+				methods = null;
+			}
 			methodsIndex = 0;
 			return 0;
 		});
@@ -542,6 +545,9 @@ public final class Component {
 			try(ValueReference value = descriptors.get(descriptor)) {
 				final Map<String, Callback> snapshot = machine.methods(value.get());
 				methods = snapshot.entrySet().stream().map(MethodInfo::new).collect(Collectors.toCollection(() -> new ArrayList<MethodInfo>(snapshot.size())));
+				if (methods.isEmpty()) {
+					methods = null;
+				}
 			}
 			methodsIndex = 0;
 			return 0;
