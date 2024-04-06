@@ -79,6 +79,14 @@ repository with a Zig library and a few small examples for
 OC-Wasm](https://git.camnet.site/amandac/ocwasm-zig).
 
 
+Other Versions
+==============
+
+DCNick3 made [a port of OC-Wasm to Minecraft
+1.7.10](https://github.com/DCNick3/OC-Wasm-GTNH/releases). If you run into any
+problems with it, please report them there, not here.
+
+
 Technical Details
 =================
 
