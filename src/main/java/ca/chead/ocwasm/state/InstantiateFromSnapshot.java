@@ -59,6 +59,11 @@ public final class InstantiateFromSnapshot extends State implements ModuleConstr
 	}
 
 	@Override
+	public int freeMemory() {
+		return cpu.getInstalledRAM();
+	}
+
+	@Override
 	public boolean isInitialized() {
 		// We don’t want to lose any events, to preserve the illusion of
 		// continuous execution.

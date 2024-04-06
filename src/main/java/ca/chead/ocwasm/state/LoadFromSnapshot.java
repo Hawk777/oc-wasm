@@ -34,6 +34,11 @@ public final class LoadFromSnapshot extends State {
 	}
 
 	@Override
+	public int freeMemory() {
+		return cpu.getInstalledRAM();
+	}
+
+	@Override
 	public boolean isInitialized() {
 		// We don’t want to lose any events, to preserve the illusion of
 		// continuous execution.

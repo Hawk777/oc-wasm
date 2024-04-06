@@ -63,6 +63,11 @@ public final class InstantiateClean extends State implements ModuleConstructionL
 	}
 
 	@Override
+	public int freeMemory() {
+		return cpu.getInstalledRAM();
+	}
+
+	@Override
 	public boolean isInitialized() {
 		// Within this state, we may run the user-provided Wasm start function;
 		// if that function makes any direct calls, they should be limited by

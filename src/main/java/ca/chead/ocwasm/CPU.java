@@ -87,6 +87,15 @@ public final class CPU implements Architecture {
 		return installedRAM;
 	}
 
+	/**
+	 * Returns the current amount of free memory.
+	 *
+	 * @return The amount of free memory, in bytes.
+	 */
+	public int getFreeRAM() {
+		return state.freeMemory();
+	}
+
 	@Override
 	public boolean isInitialized() {
 		return state != null && state.isInitialized();

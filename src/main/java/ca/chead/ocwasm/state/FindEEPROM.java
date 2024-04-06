@@ -26,6 +26,11 @@ public final class FindEEPROM extends State {
 	}
 
 	@Override
+	public int freeMemory() {
+		return cpu.getInstalledRAM();
+	}
+
+	@Override
 	public boolean isInitialized() {
 		return false;
 	}
