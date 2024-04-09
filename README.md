@@ -25,7 +25,7 @@ to follow a few steps:
   loads a program from `/init.lua`). Since there’s no craftable item that comes
   with a BIOS, you’ll need to download the BIOS onto an existing computer
   (presumably running Lua, e.g. via `wget`) and flash it onto an EEPROM (e.g.
-  via `flash`). Here's a one-liner that does that:
+  via `flash`). Here’s a one-liner that does that:
   `wget https://gitlab.com/api/v4/projects/27476164/jobs/artifacts/main/raw/packed.wasm?job=Compile -O bios.wasm && flash bios.wasm OC-Wasm-BIOS`
 * Create your application. You’ll probably do this outside Minecraft, using
   regular software development tools. Once you’ve compiled a `.wasm` file, name
@@ -63,6 +63,13 @@ ergonomic:
   set of high-level wrappers around the component APIs supported by ordinary
   OpenComputers (such as the redstone API, the filesystem API, the GPU API,
   etc.).
+* [OC-Wasm-Applied-Energistics](https://crates.io/crates/oc-wasm-applied-energistics)
+  is a set of high-level wrappers around the component APIs supported by
+  Applied Energistics (such as the import and export buses and the
+  auto-crafting system).
+* [OC-Wasm-Immersive](https://crates.io/crates/oc-wasm-immersive) is a set of
+  high-level wrappers around the component APIs supported by Immersive
+  Engineering and Immersive Technology machines.
 
 As of this writing, `OC-Wasm-OpenComputers` is incomplete, and there are no
 crates for high-level wrappers around other mods that can interact with
