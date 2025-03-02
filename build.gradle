@@ -124,7 +124,7 @@ shadowJar {
 }
 
 // Create a task to reobfuscate the shadowed JAR (by default only a
-// reobfuscate-the-unshadows-JAR task is created).
+// reobfuscate-the-unshadowed-JAR task is created).
 reobf {
 	shadowJar {}
 }
