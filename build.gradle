@@ -16,8 +16,9 @@ plugins {
 	id 'com.github.spotbugs' version '4.7.1'
 }
 
-// Introduce an additional configuration, which we will use only to hold the
-// Asmble configuration and its dependency tree for shadowing.
+// Introduce an additional configuration, which we will use to hold the
+// dependencies we want to shadow, but not the other dependencies that should
+// be resolved against the eventual user’s regular Minecraft environment.
 configurations {
 	dependenciesToShadow
 }
@@ -106,8 +107,9 @@ shadowJar {
 	// Produce the oc-wasm-<version>-shadowed.jar file.
 	archiveClassifier = 'shadowed'
 
-	// Only shadow Asmble and its dependencies, not all of Forge and
-	// OpenComputers.
+	// Only shadow Asmble and its dependencies, plus CBOR, not all of Forge and
+	// OpenComputers (which should be present in the Minecraft runtime
+	// environment already by the user installing those themselves).
 	configurations = [project.configurations.dependenciesToShadow]
 
 	// Some of the dependencies have module-info.class files. These make Forge
