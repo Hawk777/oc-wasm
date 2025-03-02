@@ -117,7 +117,7 @@ shadowJar {
 	// Forge ships a copy of ASM. However, Asmbler wants a newer version of ASM
 	// than the one shipped with Forge. If left untouched, class loading rules
 	// mean that Forge’s version will be used and the one in the OC-Wasm JAR
-	// will be ignored. To allow Asmbler to use the version it wants, relocate
+	// will be ignored. To allow Asmble to use the version it wants, relocate
 	// it, which renames the package in the OC-Wasm JAR and also all references
 	// to it.
 	relocate 'org.objectweb.asm', 'ca.chead.ocwasm.relocated.asm'
