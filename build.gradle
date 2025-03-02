@@ -12,7 +12,7 @@ buildscript {
 
 // Use the Shadow and SpotBugs plugins.
 plugins {
-	id 'com.github.johnrengelman.shadow' version '8.+'
+	id 'com.gradleup.shadow' version '8.+'
 	id 'com.github.spotbugs' version '4.7.1'
 }
 
